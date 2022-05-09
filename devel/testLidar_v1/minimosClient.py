@@ -8,3 +8,5 @@ while True:
 	print (remCounter)
 
 conn.close()
+
+pass
