@@ -1,10 +1,11 @@
 import serial
 import time
 import numpy as np
+import sc_services as scsvc
 
 # Select the correct UART port automatically
-TCP_PORT = 6000
-COM_PORT = 'COM3'
+TCP_PORT = scsvc.LIDAR_RAW
+COM_PORT = 'COM9'
 BAUDRATE = 115200
 
 serial_port = None
@@ -12,7 +13,8 @@ is_lidar_running = False
 kill_lidar = False
 
 np_distance=np.zeros(360, dtype='int')
-np_integrity=np.zeros(360, dtype='int')
+np_quality=np.zeros(360, dtype='int')
+np_rpm=np.zeros(360, dtype='int')
 
 def checksum(data):
     """
@@ -68,13 +70,15 @@ def run(lock):
     """
     global is_lidar_running, serial_port
 
-    serial_port = serial.Serial(port='COM3', baudrate=115200, timeout=None)
+    serial_port = serial.Serial(port=COM_PORT, baudrate=115200, timeout=None)
     speed_rpm = 0
     #buffer=Array[0] * 720
     local_np_distance = np.zeros(360, dtype='int')
     local_np_quality = np.zeros(360, dtype='int')
+    local_np_rpm = np.zeros(360, dtype='int')
     global np_distance
-    global np_integrity
+    global np_quality
+    global np_rpm
 
     # init()
 
@@ -104,7 +108,7 @@ def run(lock):
             expected_checksum = data[19] << 8 | data[18]
             actual_checksum = packet_header + packet_index + data[0:18]
             if checksum(actual_checksum) != expected_checksum:
-                print ("PACKET ERROR!")
+                print ("PACKET ERROR: ", index)
                 continue
 
             # Speed in revolutions per minute
@@ -125,17 +129,21 @@ def run(lock):
 
                 local_np_distance[index * 4 + i] = distance
                 local_np_quality[index*4+i] = quality
+                local_np_rpm[index*4+i] = speed_rpm
 
             if index == 89:
                 # copia el buffer local a dos np Arrays globales
-
+                # print (local_np_rpm[0:60])
+                # print (local_np_distance[0:60])
+                # print (local_np_quality[300:360])
                 with lock:
                     np_distance=local_np_distance
-                    np_integrity=local_np_quality
+                    np_quality=local_np_quality
+                    np_rpm=local_np_rpm
 
     finally:
         cleanup()
-
+    print ("SERIAL ERROR")
 
 if __name__ == "__main__":
     import multiprocessing as mp
@@ -156,7 +164,7 @@ if __name__ == "__main__":
                 except:
                     print ("CANT SEND!")
                     break;
-            time.sleep(0.5)
+            time.sleep(0.1)
         print ("DISCONNECTED")
         conn.close()
         print("THREAD END")
@@ -175,12 +183,6 @@ if __name__ == "__main__":
         while True:
             c = listener.accept()
             th.Thread(target=conHandler, args=(c, listener,g_lock,)).start()
-            """
-            time.sleep(2.00)
-            with g_lock:
-                print(np_distance)
-            # print(np_integrity)
-            """
     except KeyboardInterrupt:
        print ("EXIT")
     listener.close()

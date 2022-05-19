@@ -1,0 +1,7 @@
+start realsenseService.py
+
+start lidarService.py
+timeout 2
+start lidarMinsService.py
+timeout 2
+start nanoControl.py
