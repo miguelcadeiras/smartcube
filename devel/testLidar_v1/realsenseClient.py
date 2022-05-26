@@ -38,7 +38,7 @@ while True:
 
     #cv2.imshow("image", depth_colormap[:100,100:300])
     cv2.imshow("image", depth_colormap)
-
+    time.sleep(0.010)
     key = cv2.waitKey(1) & 0xFF
 
     if key == ord("q"):

@@ -12,7 +12,7 @@ cv2.namedWindow('image')
 while True:
 
     color_image=conn.recv()
-    print (color_image.shape)
+    #print (color_image.shape)
     time.sleep(0.010)
     cv2.imshow("image", color_image)
 

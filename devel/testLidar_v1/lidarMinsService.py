@@ -1,109 +1,124 @@
 import time
+import logdata
+import socketprovider
+import threading as th
+import sc_services
 import numpy as np
 import math
-import sc_services as scsvc
 
-# Select the correct UART port automatically
-TCP_PORT_CLIENT = scsvc.LIDAR_RAW
-TCP_PORT = scsvc.LIDAR_MINS
-
-minimos = []
-
-# calcula los minimos
-def calc_min(list_angulos,slices):
-	arr = np.array(list_angulos[:-1])
-	arr = arr.astype(int)
-	arr[arr==-1] = 6000
-	list_minimos = []
-	for slice in slices:
-		desde=slice[0]
-		hasta=slice[1]
-		m=min(arr[desde:hasta])
-		list_minimos.append(m)
-	return list_minimos
-
-def calc_min2(list_angulos,slices):
-	#arr = np.array(list_angulos[:-1])
-	arr = np.array(list_angulos)
-	arr = arr.astype(int)
-	#arr[arr == -1] = 6000
-	arr[arr < 10] = 6000
-	list_minimos = []
-	#print (arr)
-	for slice in slices:
-		distances_y = []
-		desde=slice[0]
-		hasta=slice[1]
-		for ang in range (desde, hasta):
-			y = -math.sin((ang - 90) * math.pi / 180) * (arr[ang])
-			x = math.cos((ang - 90) * math.pi / 180) * (arr[ang])
-			if abs(x) < 400 and abs(y) < 1000:
-				#print (x,y)
-				distances_y.append(y)
-		if len(distances_y) > 0:
-			m=min(distances_y)
-			list_minimos.append(m)
-	return list_minimos
+SERVICENAME = "lidarMinsService"
+DEBUG = False
 
 
-#Esta rutina lee el puerto
-def run(lock):
-	from multiprocessing.connection import Client
-	# init()
-	address = ('localhost', TCP_PORT_CLIENT)
-	conn = Client(address)
-	global minimos
-	try:
-		while True:
-			list_angulos = [[0, 90], [270, 359]]
-			lidarAngles = conn.recv()
-			local_minimos=calc_min2(lidarAngles, list_angulos)
-			print(local_minimos)
-			with lock:
-				minimos=local_minimos
-	finally:
-		print ("CLIENT END!")
+class dataColector:
+	data = None
+	lock = None
+	thDataColector = None
+	exit = None
+
+	def calc_min2(self, list_angulos, slices):
+		# arr = np.array(list_angulos[:-1])
+		arr = np.array(list_angulos)
+		arr = arr.astype(int)
+		# arr[arr == -1] = 6000
+		arr[arr < 10] = 6000
+		list_minimos = []
+		# print (arr)
+		for slice in slices:
+			distances_y = []
+			desde = slice[0]
+			hasta = slice[1]
+			for ang in range(desde, hasta):
+				y = -math.sin((ang - 90) * math.pi / 180) * (arr[ang])
+				x = math.cos((ang - 90) * math.pi / 180) * (arr[ang])
+				if abs(x) < 400 and abs(y) < 1000:
+					# print (x,y)
+					distances_y.append(y)
+			if len(distances_y) > 0:
+				m = min(distances_y)
+				list_minimos.append(m)
+		return list_minimos
+
+	def runLoop(self, lock):
+
+		from multiprocessing.connection import Client
+		import numpy as np
+
+		try:
+			lidarServiceAddress = ('localhost', sc_services.LIDAR_RAW)
+			conn = Client(lidarServiceAddress)
+		except:
+			logdata.log("ERROR: Cant INIT LIDAR MINS")
+			return None
+
+		try:
+			while True:
+				list_angulos = [[0, 90], [270, 359]]
+				lidarAngles = conn.recv()
+				local_minimos = self.calc_min2(lidarAngles, list_angulos)
+				if (DEBUG):
+					logdata.log(local_minimos)
+				with lock:
+					self.data = local_minimos.copy()
+				if (self.exit == True):
+					break
+		except Exception as e:
+			logdata.log(e)
+			logdata.log("ERROR: DataCollector Loop")
+
+		logdata.log("Stopping DataCollector")
+
+	def getData(self):
+		with self.lock:
+			return (self.data)
+
+	def start(self):
+		self.exit = False
+		logdata.log("Starting DataCollector thread")
+		self.lock = th.Lock()
+		self.thDataColector = th.Thread(target=self.runLoop, args=(self.lock,))
+		self.thDataColector.setDaemon(True)
+		self.thDataColector.start()
+		self.thDataColector.join(4)
+
+	# time.sleep(4)
+
+	def stop(self):
+		self.exit = True
+
+
+def serviceStart(pipeOut=None, pipeIn=None, setDebug=False):
+	DEBUG = setDebug
+	logdata.logPipe = pipeOut
+	logdata.log("Starting:", SERVICENAME)
+
+	dc = dataColector()
+	sp = socketprovider.socketProvider()
+	dc.start()
+	sp.getData = dc.getData
+	dcrunning = False
+	if dc.thDataColector.is_alive():
+		try:
+			sp.start(sc_services.LIDAR_MINS)
+			dcrunning = True
+		except KeyboardInterrupt:
+			logdata.log("EXIT-2")
+
+	while dcrunning == True:
+		try:
+			time.sleep(0.1)
+		except KeyboardInterrupt:
+			logdata.log("EXIT-3")
+			break
+	dc.stop()
+	sp.stop()
+	logdata.log("Service Stopping")
+	time.sleep(5)
+	logdata.log("Service STOPPED")
 
 
 
 if __name__ == "__main__":
-	import multiprocessing as mp
-	import threading as th
-	from multiprocessing.connection import Listener
-
-	address = ('localhost', TCP_PORT)  # family is deduced to be 'AF_INET'
-	listener = Listener(address)
-
-
-	def conHandler(conn, listener, lock):
-		print('connection accepted from', listener.last_accepted)
-		while True:
-			with lock:
-				try:
-					conn.send(minimos)
-				except:
-					print ("CANT SEND!")
-					break
-			time.sleep(0.1)
-		print ("DISCONNECTED")
-		conn.close()
-		print("THREAD END")
-
-
-
-	# Global lock
-	g_lock = th.Lock()
-	print ("INZONE Service started")
-	thSerialRead = th.Thread(target=run, args=(g_lock,))
-	thSerialRead.setDaemon(True)
-	thSerialRead.start()
-	print ("Reading LIDAR on PORT", TCP_PORT_CLIENT)
-	print ("Listening TCP on PORT", TCP_PORT)
-	try:
-		while True:
-			c = listener.accept()
-			th.Thread(target=conHandler, args=(c, listener,g_lock,)).start()
-	except KeyboardInterrupt:
-	   print ("EXIT")
-	listener.close()
-	p.join()
+	print("RUNNING STANDALONE")
+	logdata.runningStandalone = True
+	serviceStart()

@@ -1,13 +1,17 @@
 import threading
 
 import cv2
-#import ftplib
+import ftplib
 # import getmac
 import time
-print ("1")
+# print ("1")
+
+
 # define a video capture object
-vid = cv2.VideoCapture(0)
-print ("2")
+vid = cv2.VideoCapture(0,cv2.CAP_DSHOW)
+frameCount=0
+frame_upload_rate=150
+# print ("2")
 def make_320p(cap):
     cap.set(3, 320)
     cap.set(4, 240)
@@ -18,31 +22,37 @@ mac = "webcam"
 # print("mac: ",getmac.get_mac_address())
 # print(getmac.getmac)
 def upload_file(img_path):
+
+    print("uploadStart")
     try:
         session = ftplib.FTP('cubik.smartcubik.com', "smartcubik", "Chocolatada123!")
         file = open(img_path, 'rb')  # file to send
         session.storbinary("STOR %s" % img_path, file)  # send the file
         file.close()  # close file and FTP
         session.quit()
+        print("uploadFinished")
     except:
-        pass
-print ("START")
+        print("Something went wrong")
+
+print("starting webcam")
 while (True):
 
     # Capture the video frame
     # by frame
 
     ret, frame = vid.read()
-    print ("frame")
+
     # Display the resulting frame
     cv2.imshow('frame', frame)
-
+    frameCount +=1
     # Save file
-    # img_path = mac + ".jpg"
-    # cv2.imwrite(img_path,frame)
-    # upload_file(img_path)
-    # print("tic")
-    # time.sleep(1)
+    if frameCount > frame_upload_rate:
+        print("sending to Upload")
+        img_path = mac + ".jpg"
+        cv2.imwrite(img_path, frame)
+        x = threading.Thread(target=upload_file(img_path), args=(1,))
+        x.start()
+        frameCount = 0
 
     # the 'q' button is set as the
     # quitting button you may use any

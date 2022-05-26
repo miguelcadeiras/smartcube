@@ -72,7 +72,6 @@ def run(lock):
 
     serial_port = serial.Serial(port=COM_PORT, baudrate=115200, timeout=None)
     speed_rpm = 0
-    #buffer=Array[0] * 720
     local_np_distance = np.zeros(360, dtype='int')
     local_np_quality = np.zeros(360, dtype='int')
     local_np_rpm = np.zeros(360, dtype='int')

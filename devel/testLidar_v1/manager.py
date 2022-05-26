@@ -1,41 +1,55 @@
-import os
+
 from tkinter import *
 from tkinter.scrolledtext import *
-import subprocess
-import os, signal
-from subprocess import Popen, PIPE
-import threading as th
+import multiprocessing
+import joystickService
+import lidarServiceV2
+import lidarMinsService
+import realsenseService
+
 import time
 
-PYTHON_ENV="C:/Users/Usuario/AppData/Local/Programs/Python/Python39/python.exe"
+import threading as th
+
 
 class externProc:
-    procHandler=0
-    t1=0
 
-    def __init__(self, text, scriptName):
+    procHandler=None
+    t1=None
+
+    def __init__(self, text, scriptName, serviceStartFunction):
         self.tkText = text
         self.scriptName= scriptName
+        self.pOut, self.pIn = multiprocessing.Pipe()
+        self.serviceStartFunction=serviceStartFunction
+
     def logOutput(self, filename):
-        print("STARTING ", filename )
-        while self.procHandler.poll() is None:
-            line=self.procHandler.stdout.readline()
-            self.tkText.addText(line.decode())
+
+        while True:
+            if self.pIn.poll():
+                self.tkText.addText (self.pIn.recv())
 
     def start(self):
+        print("STARTING ")
         self.tkText.clearText()
-        self.procHandler = Popen([PYTHON_ENV, self.scriptName], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, shell=False)
+        #joystickService.serviceStart(self.pOut, self.pIn, False)
+        self.procHandler = multiprocessing.Process(target=self.serviceStartFunction, args=(self.pOut, self.pIn, False))
+        self.procHandler.daemon=True
+        self.procHandler.start()
         self.t1=th.Thread(target=self.logOutput, args=(self.scriptName,))
-        #self.t1.setDaemon(True)
+        self.t1.setDaemon(True)
         self.t1.start()
+
     def kill (self):
+        print ("KILLING")
         self.tkText.clearText()
-        try:
-            os.kill(self.procHandler.pid, signal.SIGTERM)
-        except:
-            self.tkText.addText("-- NO PROCESS RUNNING --")
-        else:
-            self.tkText.addText("-- PROCESS KILLED --")
+        self.procHandler.terminate()
+        #try:
+        #    os.kill(self.procHandler.pid, signal.SIGTERM)
+        #except:
+        #    self.tkText.addText("-- NO PROCESS RUNNING --")
+        #else:
+        #    self.tkText.addText("-- PROCESS KILLED --")
 
 class tkProcFrame:
     def __init__(self, root, serviceName):
@@ -71,41 +85,42 @@ class tkProcFrame:
     def setStopFunc(self, stopFunc):
         self.btnStop.configure(command=stopFunc)
 
-root = Tk()
-root.geometry("800x800")
-root.title("MANAGER")
+
+if __name__ == "__main__":
+
+    root = Tk()
+    root.geometry("800x800")
+    root.title("MANAGER")
 #frame1 = Frame(root, height = 20)
 #frame2 = Frame(root, height = 20)
 #text = Text(frame1, bg="black", fg="white", bd=2, width=100, height=20)
 #text2 = Text(frame2, bg="black", fg="white", bd=2, width=100, height=20)
 
-procFrame1=tkProcFrame(root, "Realsense Service")
-procFrame2=tkProcFrame(root, "Lidar Service")
-procFrame3=tkProcFrame(root, "Lidar Mins Service")
-procFrame4=tkProcFrame(root, "Nano Control")
-
-p1=externProc(procFrame1, "realsenseService.py")
-procFrame1.setStartFunc(p1.start)
-procFrame1.setStopFunc(p1.kill)
-
-p2=externProc(procFrame2, "lidarService.py")
-procFrame2.setStartFunc(p2.start)
-procFrame2.setStopFunc(p2.kill)
-
-p3=externProc(procFrame3, "lidarMinsService.py")
-procFrame3.setStartFunc(p3.start)
-procFrame3.setStopFunc(p3.kill)
-
-p4=externProc(procFrame4, "nanoControl.py")
-procFrame4.setStartFunc(p4.start)
-procFrame4.setStopFunc(p4.kill)
+    procFrame1=tkProcFrame(root, "JoystickService")
+    procFrame2=tkProcFrame(root, "Lidar Service")
+    procFrame3=tkProcFrame(root, "Lidar Mins Service")
+    procFrame4 = tkProcFrame(root, "Realsense Service")
+    procFrame5=tkProcFrame(root, "Nano Control")
 
 
+    p1=externProc(procFrame1, "joystickService", joystickService.serviceStart)
+    procFrame1.setStartFunc(p1.start)
+    procFrame1.setStopFunc(p1.kill)
+
+    p2 = externProc(procFrame2, "lidarService", lidarServiceV2.serviceStart)
+    procFrame2.setStartFunc(p2.start)
+    procFrame2.setStopFunc(p2.kill)
+
+    p3 = externProc(procFrame3, "lidarMinsService", lidarMinsService.serviceStart)
+    procFrame3.setStartFunc(p3.start)
+    procFrame3.setStopFunc(p3.kill)
+
+    p4 = externProc(procFrame4, "realsenseService", realsenseService.serviceStart)
+    procFrame4.setStartFunc(p4.start)
+    procFrame4.setStopFunc(p4.kill)
 
 
-root.mainloop()
-p1.kill()
-p2.kill()
-p3.kill()
-p4.kill()
+    root.mainloop()
+    p1.kill()
+
 
