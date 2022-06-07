@@ -6,6 +6,7 @@ import joystickService
 import lidarServiceV2
 import lidarMinsService
 import realsenseService
+import realsenseMinsService
 
 import time
 
@@ -55,9 +56,9 @@ class tkProcFrame:
     def __init__(self, root, serviceName):
         self.root = root
         self.serviceName = serviceName
-        self.frame = Frame(root, relief="raised", height=20, width=150, border=2)
+        self.frame = Frame(root, relief="raised", height=10, width=150, border=2)
         #self.text=Text(self.frame, bg="black", fg="white", bd=2, width=100, height=20)
-        self.text=ScrolledText(self.frame, bg="#202020", fg="#a0a0a0", height='10', width='45', wrap=WORD)
+        self.text=ScrolledText(self.frame, bg="#202020", fg="#a0a0a0", height='5', width='45', wrap=WORD)
         self.label=Label(self.frame, text = self.serviceName)
         self.btnStart = Button(self.frame, text="START")
         self.btnStop = Button(self.frame, text="STOP")
@@ -100,7 +101,7 @@ if __name__ == "__main__":
     procFrame2=tkProcFrame(root, "Lidar Service")
     procFrame3=tkProcFrame(root, "Lidar Mins Service")
     procFrame4 = tkProcFrame(root, "Realsense Service")
-    procFrame5=tkProcFrame(root, "Nano Control")
+    procFrame5=tkProcFrame(root, "Realsense Mins Control")
 
 
     p1=externProc(procFrame1, "joystickService", joystickService.serviceStart)
@@ -118,6 +119,10 @@ if __name__ == "__main__":
     p4 = externProc(procFrame4, "realsenseService", realsenseService.serviceStart)
     procFrame4.setStartFunc(p4.start)
     procFrame4.setStopFunc(p4.kill)
+
+    p5 = externProc(procFrame5, "realsenseMinsService", realsenseMinsService.serviceStart)
+    procFrame5.setStartFunc(p5.start)
+    procFrame5.setStopFunc(p5.kill)
 
 
     root.mainloop()

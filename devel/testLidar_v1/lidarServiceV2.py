@@ -6,7 +6,7 @@ import sc_services
 
 SERVICENAME = "lidarService"
 DEBUG = False
-COM_PORT = "COM9"
+COM_PORT = "COM14"
 
 class dataColector:
     data = None
@@ -38,7 +38,6 @@ class dataColector:
         import serial
         import numpy as np
         try:
-
             serial_port = serial.Serial(port=COM_PORT, baudrate=115200, timeout=None)
         except:
             logdata.log("ERROR: Cant INIT LIDAR")
@@ -46,17 +45,23 @@ class dataColector:
         local_np_distance = np.zeros(360, dtype='int')
         local_np_quality = np.zeros(360, dtype='int')
         local_np_rpm = np.zeros(360, dtype='int')
+        local_counter=0
+        packet_header=None
+        packet_index = None
         try:
+
             while True:
                 # Do not hog CPU power
-                # time.sleep(0.00001)
+                #time.sleep(0.00001)
 
                 # Packet format:
                 # [0xFA, 1-byte index, 2-byte speed, [2-byte flags/distance, 2-byte quality] * 4, 2-byte checksum]
-                # All multi-byte values are little endian.
+                # All multi-byte values are little endian
                 packet_header = serial_port.read(1)
                 if packet_header[0] != 0xFA:
                     continue
+                #if DEBUG:
+                #    logdata.log ("Data Waiting:", serial_port.in_waiting)
                 # print (serial_port.in_waiting)
                 packet_index = serial_port.read(1)
                 if packet_index[0] < 0xA0 or packet_index[0] > 0xF9:
@@ -92,8 +97,8 @@ class dataColector:
                         distance = -1
 
                     local_np_distance[index * 4 + i] = distance
-                    local_np_quality[index * 4 + i] = quality
-                    local_np_rpm[index * 4 + i] = speed_rpm
+                    #local_np_quality[index * 4 + i] = quality
+                    #local_np_rpm[index * 4 + i] = speed_rpm
 
                 if index == 89:
                     # copia el buffer local a dos np Arrays globales
@@ -103,7 +108,8 @@ class dataColector:
                     with lock:
                         self.data = local_np_distance.copy()
                     if DEBUG:
-                        logdata.log (local_np_distance)
+                        local_counter+=1
+                        logdata.log (local_counter, speed_rpm)
                 if (self.exit == True):
                     break
         except Exception as e:

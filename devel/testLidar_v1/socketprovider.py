@@ -8,6 +8,7 @@ class socketProvider:
     address = None
     listener = None
     getData = None
+    sendInterval = 0.1
 
     # def conHandler(self, conn, listener, lock):
     def conHandler(self, conn, listener):
@@ -21,7 +22,7 @@ class socketProvider:
             except:
                 logdata.log("CANT SEND TO:", source)
                 break
-            time.sleep(0.1)
+            time.sleep(self.sendInterval)
         logdata.log('DISCONNECTED:', source)
         conn.close()
 

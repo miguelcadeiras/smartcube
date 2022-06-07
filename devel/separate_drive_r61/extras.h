@@ -47,9 +47,11 @@ class VoltMeasure {
     bool groundOffset;
     float voltage=0.0;
     unsigned long timer;
+    
   public:
     VoltMeasure(uint8_t pin, long r1, long r2, bool gndOffset=false);
     float read();
+    void readStr(char *buf)
     void update();
 };
 
