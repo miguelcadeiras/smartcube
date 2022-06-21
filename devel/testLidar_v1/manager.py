@@ -1,4 +1,3 @@
-
 from tkinter import *
 from tkinter.scrolledtext import *
 import multiprocessing
@@ -7,11 +6,12 @@ import lidarServiceV2
 import lidarMinsService
 import realsenseService
 import realsenseMinsService
-
+import pixyService
 import time
 
 import threading as th
 
+autoStart=True
 
 class externProc:
 
@@ -27,10 +27,18 @@ class externProc:
     def logOutput(self, filename):
 
         while True:
-            if self.pIn.poll():
+            if self.pIn.poll(0.001):
                 self.tkText.addText (self.pIn.recv())
-
+    def isRuninng(self):
+        if self.procHandler is not None:
+            if self.procHandler.is_alive():
+                return True
+        return False
     def start(self):
+        if self.isRuninng():
+            print ("ALREADY RUNNING")
+            return
+
         print("STARTING ")
         self.tkText.clearText()
         #joystickService.serviceStart(self.pOut, self.pIn, False)
@@ -45,12 +53,6 @@ class externProc:
         print ("KILLING")
         self.tkText.clearText()
         self.procHandler.terminate()
-        #try:
-        #    os.kill(self.procHandler.pid, signal.SIGTERM)
-        #except:
-        #    self.tkText.addText("-- NO PROCESS RUNNING --")
-        #else:
-        #    self.tkText.addText("-- PROCESS KILLED --")
 
 class tkProcFrame:
     def __init__(self, root, serviceName):
@@ -87,45 +89,110 @@ class tkProcFrame:
         self.btnStop.configure(command=stopFunc)
 
 
-if __name__ == "__main__":
+class tkProcNav():
+    def __init__(self, root):
+        self.root=root
+        self.frame = Frame(self.root, relief="raised", height=20, width=150, border=2)
+        self.text = ScrolledText(self.frame, bg="#202020", fg="#a0a0a0", height='15', width='65', wrap=WORD)
+        self.label = Label(self.frame, text="MAIN NAV PROCESS")
+        self.btnStart = Button(self.frame, text="START")
+        self.btnStop = Button(self.frame, text="STOP")
+        self.frame.pack(pady=4, padx=4)
 
+        self.label.pack()
+        self.btnStart.pack(padx=5, side=LEFT)
+        self.btnStop.pack(padx=5, side=LEFT)
+
+        self.text.pack(padx=5, pady=5)
+
+
+if __name__ == "__main__":
     root = Tk()
-    root.geometry("800x800")
+    root.geometry("1200x800")
     root.title("MANAGER")
+    root.resizable(False, False)
+
+
+    frameServices = Frame(root, height = 100)
+    frameNav = Frame(root, height=200)
 #frame1 = Frame(root, height = 20)
 #frame2 = Frame(root, height = 20)
 #text = Text(frame1, bg="black", fg="white", bd=2, width=100, height=20)
 #text2 = Text(frame2, bg="black", fg="white", bd=2, width=100, height=20)
 
-    procFrame1=tkProcFrame(root, "JoystickService")
-    procFrame2=tkProcFrame(root, "Lidar Service")
-    procFrame3=tkProcFrame(root, "Lidar Mins Service")
-    procFrame4 = tkProcFrame(root, "Realsense Service")
-    procFrame5=tkProcFrame(root, "Realsense Mins Control")
+    frameServices.pack(side=LEFT, anchor=NW, padx=(10,10), pady=(10,10))
+    frameNav.pack (side=RIGHT, anchor=NE, padx=(10,10), pady=(10,10))
+
+    mainNavFrame=tkProcNav(frameNav)
+
+    procFrame1 = tkProcFrame(frameServices, "Lidar Service")
+    procFrame2 = tkProcFrame(frameServices, "Lidar Mins Service")
+    procFrame3 = tkProcFrame(frameServices, "Realsense Service")
+    procFrame4 = tkProcFrame(frameServices, "Realsense Mins Service")
+    procFrame5 = tkProcFrame(frameServices, "Pixy Service")
+    procFrame6 = tkProcFrame(frameServices, "Joystick Service")
 
 
-    p1=externProc(procFrame1, "joystickService", joystickService.serviceStart)
+    p1 = externProc(procFrame1, "lidarService", lidarServiceV2.serviceStart)
     procFrame1.setStartFunc(p1.start)
     procFrame1.setStopFunc(p1.kill)
 
-    p2 = externProc(procFrame2, "lidarService", lidarServiceV2.serviceStart)
+    p2 = externProc(procFrame2, "lidarMinsService", lidarMinsService.serviceStart)
     procFrame2.setStartFunc(p2.start)
     procFrame2.setStopFunc(p2.kill)
 
-    p3 = externProc(procFrame3, "lidarMinsService", lidarMinsService.serviceStart)
+    p3 = externProc(procFrame3, "realsenseService", realsenseService.serviceStart)
     procFrame3.setStartFunc(p3.start)
     procFrame3.setStopFunc(p3.kill)
 
-    p4 = externProc(procFrame4, "realsenseService", realsenseService.serviceStart)
+    p4 = externProc(procFrame4, "realsenseMinsService", realsenseMinsService.serviceStart)
     procFrame4.setStartFunc(p4.start)
     procFrame4.setStopFunc(p4.kill)
 
-    p5 = externProc(procFrame5, "realsenseMinsService", realsenseMinsService.serviceStart)
+    p5=externProc(procFrame5, "pixyService", pixyService.serviceStart)
     procFrame5.setStartFunc(p5.start)
     procFrame5.setStopFunc(p5.kill)
 
+    p6=externProc(procFrame6, "joystickService", joystickService.serviceStart)
+    procFrame6.setStartFunc(p6.start)
+    procFrame6.setStopFunc(p6.kill)
+
+
+    if autoStart:
+        # SERVICIOS SIN DEPENDENCIA
+        p1.start()
+        p3.start()
+        p5.start()
+        p6.start()
+
+        # SERVICIOS CON DEPENDENCIA
+        def delayedStart():
+            startDelay=8
+            procFrame2.addText("STARING IN " + str(startDelay))
+            procFrame4.addText("STARING IN " + str(startDelay))
+            time.sleep(startDelay)
+            p2.start()
+            p4.start()
+            time.sleep (5)
+            root.iconify()
+
+
+        t=th.Thread(target=delayedStart)
+        t.start()
+
+
+
+
+
 
     root.mainloop()
+
+
     p1.kill()
+    p2.kill()
+    p3.kill()
+    p4.kill()
+    p5.kill()
+    p6.kill()
 
 

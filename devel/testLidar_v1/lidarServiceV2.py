@@ -156,6 +156,10 @@ def serviceStart(pipeOut=None, pipeIn=None, setDebug=False):
 
     while dcrunning == True:
         try:
+            if dc.thDataColector.is_alive():
+                dcrunning = True
+            else:
+                dcrunning = False
             time.sleep(0.1)
         except KeyboardInterrupt:
             logdata.log("EXIT-3")

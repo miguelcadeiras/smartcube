@@ -3,13 +3,15 @@ import sc_services as scsvc
 import time
 import serial
 import threading as th
+import json
 import msvcrt
 import numpy as np
 
 LIDAR_PAUSE_DISTANCE=500
 
 realsenseMins=(5000, 5000)
-lidarMins=(0,0)
+
+lidarMins=(1000,1000)
 joyData=[0,0,0,0]
 pixyData={'x0':-1,'y0':-1,'x1':-1,'y1':-1,'v':0, 'i':0}
 motionData={'vmot': 0.0, 'vcomp': 0.0, 'accX': 0.0, 'accY': 0.0, 'accZ': 0.0, 'enc': 0.0, 'mstat': 0, 'spl': 0.0, 'spr': 0.0, 'dl': 0.0, 'dr': 0.0}
@@ -20,9 +22,13 @@ MOTION_TURN_LEFT=1
 NAVIGATION_MODE_MANUAL=0
 NAVIGATION_MODE_PIXY=1
 NAVIGATION_MODE_REALSENSE=2
-NAVIGATION_MODE_JOYSTICK=2
+NAVIGATION_MODE_JOYSTICK=3
+NAVIGATION_MODE_CMD=4
 
 navigationMode=NAVIGATION_MODE_MANUAL
+
+
+
 
 def pixyClient():
     address = ('localhost', scsvc.PIXY_RAW)
@@ -63,7 +69,7 @@ def joystickClient():
         while True:
             if tcp_connected == True:
                 joyData = conn.recv()
-                print (joyData)
+                #print (joyData)
             else:
                 joyData=[0.0, 0.0, 0.0, 0.0]
 
@@ -81,7 +87,7 @@ def lidarMinClient():
     except:
         print("CANT CONNECT LIDAR MIN SERVICE 6001")
         tcp_connected = False
-        exit(-1)
+        #exit(-1)
 
     def readLidarMin(conn):
         global lidarMins
@@ -94,8 +100,6 @@ def lidarMinClient():
     thReadLidarMin = th.Thread(target=readLidarMin, args=(conn,))
     thReadLidarMin.setDaemon(True)
     thReadLidarMin.start()
-
-
 
 def realsenseMinClient():
     address = ('localhost', scsvc.REALSENSE_MINS)
@@ -137,13 +141,11 @@ def megaReceive():
         #print (data[0])
         jsonData={}
         try:
-            jsonData = json.loads(data.decode())
+            jsonData = json.loads(data.decode(errors="ignore"))
             motionData.update(jsonData)
         except Exception as e:
-            print ("----")
-            print ("MEGA RECEIVE: ")
-            print (data)
-            print ("ERROR:" + str(e))
+            print ("MEGA RECEIVE: ", data)
+            #print ("ERROR:" + str(e))
 
 
         #print (motionData)
@@ -154,37 +156,28 @@ def megaWrite (speedr, speedl):
     arduino_mega.write(dataStr.encode('utf-8'))
     #print ('TO MEGA:', dataStr)
 
+def megaBeep (time=100, rep=1):
+    dataStr="{\"beep\":["+str(time)+","+str(rep)+"]}\n"
+    arduino_mega.write(dataStr.encode('utf-8'))
 
 thMegaReceive = th.Thread(target=megaReceive)
 thMegaReceive.setDaemon(True)
 thMegaReceive.start()
 
-#realsenseMinClient()
-#lidarMinClient()
-#joystickClient()
+print ("STARTING ")
+
+realsenseMinClient()
+lidarMinClient()
+joystickClient()
 pixyClient()
 
-print ("RUNNING")
+print ("CLIENTS STARTED")
 
-def joyDrive():
-    speedRight = joyData[1] * 0.32 * -1
-    speedLeft = joyData[1] * 0.32 * -1
-    if abs(speedRight) < 0.05:
-        speedRight = 0
-    if abs(speedLeft) < 0.05:
-        speedLeft = 0
 
-    direction = joyData[2]
-    if abs(direction) < 0.07:
-        direction = 0
-    if direction < 0:
-        speedLeft = speedLeft * (1.0 - abs(direction))
-    if direction > 0:
-        speedRight = speedRight * (1.0 - abs(direction))
-    return speedRight, speedLeft
 
 def millis():
     return time.time()*1000
+
 
 class ManualDrive:
     speedLeft=0.0
@@ -247,12 +240,27 @@ class ManualDrive:
             self.speedLeft=self.maxSpeed * 1.05
             self.speedRight=self.maxSpeed * 0.7
 
+
 class EncoderData:
     distance=0
     lastDistance=0
     lastArduinoEncDistance=0
-    lastEncoderUpdate=0
+    lastEncoderIncreaseTime=0
+    speed=0
+    speedLastDistance=0
+    speedTimer=0
+    def calcSpeed(self):
+        if millis()-self.speedTimer > 1000:
+            self.speed=(self.lastArduinoEncDistance-self.speedLastDistance) / 1
+            self.speedLastDistance=self.lastArduinoEncDistance
+            self.speedTimer=millis()
 
+
+
+    def resetTimer(self):
+        self.lastEncoderIncreaseTime = millis()
+    def getTimer(self):
+        return millis()-self.lastEncoderIncreaseTime
     def resetDistance(self):
         self.distance=0
         self.lastDistance=0
@@ -262,7 +270,7 @@ class EncoderData:
         arduinoEncDistance=motionData['enc']
 
         if (arduinoEncDistance > self.lastArduinoEncDistance):
-            lastEncoderUpdate=millis()
+            self.resetTimer()
             self.distance += arduinoEncDistance - self.lastArduinoEncDistance
             self.lastArduinoEncDistance = arduinoEncDistance
 
@@ -271,6 +279,7 @@ class EncoderData:
                 #str(self.distance)
                 #newest_method_string = f"{numvar:.9f}"
                 vser.Serial.println("{mts;" + f"{self.distance: .2f}" + ";}")
+
 
 class RealsenseDrive:
     error=0
@@ -283,16 +292,29 @@ class RealsenseDrive:
     realSenseDetectedTimer=0
     speedRight=0.0
     speedLeft=0.0
-    def update(self, realsenseData):
-        err=0.0  # ACA VA EL DATO QUE VIENE DE REALSENSE
+    MAX_SPEED = 100
+    LOW_SPEED = 50
+    barDetected=False
+    def update(self, rsData):
+        err = rsData[0]  # ACA VA EL DATO QUE VIENE DE REALSENSE
         self.errorPrev = self.error
-        self.error = err / 10;
+        self.error = err / 10
 
-        if (abs(self.error) > 25):
-            self.realSenseDetectedTimer = millis();
+        #self.barDetected = True
 
-        if (abs(self.error) > 60):
-            self.barDetected = false
+        if abs(self.error) > 25:
+            self.barDetected = True
+            self.realSenseDetectedTimer = millis()
+
+        if millis()-self.realSenseDetectedTimer > 250:
+            self.barDetected = False
+
+        if abs(self.error) <= 25:
+            self.barDetected = True
+            self.realSenseDetectedTimer = millis()
+
+        if abs(self.error) > 60:
+            self.barDetected = False
 
         # INTEGRADOR
         self.integral += self.error
@@ -313,8 +335,8 @@ class RealsenseDrive:
 
         # SI EL ERROR ES MAYOR A 10 VEL=50%
         if (abs(self.error) > 10):
-            self.speedLeft = 50
-            self.speedRight = 50
+            self.speedLeft = self.LOW_SPEED
+            self.speedRight = self.LOW_SPEED
 
         if (self.pid > 0):
             self.speedRight = self.speedRight - abs(self.pid);
@@ -328,18 +350,41 @@ class RealsenseDrive:
 
         return self.speedRight, self.speedLeft
 
-class pixyDrive:
+class JoyDrive:
+    speedLeft=0
+    speedRight=0
+    maxSpeed=0.32
+
+    def update(self, joyData):
+        self.speedRight = joyData[1] * 0.32 * -1
+        self.speedLeft = joyData[1] * 0.32 * -1
+        if abs(self.speedRight) < 0.05:
+            self.speedRight = 0
+        if abs(self.speedLeft) < 0.05:
+            self.speedLeft = 0
+
+        direction = joyData[2]
+        if abs(direction) < 0.07:
+            direction = 0
+        if direction < 0:
+            self.speedLeft = self.speedLeft * (1.0 - abs(direction))
+        if direction > 0:
+            self.speedRight = self.speedRight * (1.0 - abs(direction))
+
+        return self.speedRight, self.speedLeft
+
+class PixyDrive:
     lastVectorTime=0
     errorPrev=0
     error=0
     integral=0
     pid=0
-    pGain = 2.5 #PID_P_GAIN; 2.5
+    pGain = 2.0 #PID_P_GAIN; 2.5
     iGain = 0.1 #PID_I_GAIN; 0.1
-    dGain = 0.7 #PID_D_GAIN; 0.7
+    dGain = 0.4 #PID_D_GAIN; 0.7
 
     MAX_SPEED=100 #0.32
-    LOW_SPEED=20 #ORIGINAL 40 #0.16
+    LOW_SPEED=40 #ORIGINAL 40 #0.16
 
     speedLeft=0
     speedRight=0
@@ -427,16 +472,17 @@ class pixyDrive:
                 self.speedLeft = self.speedLeft - abs(self.pid);
 
             if (self.speedLeft < 0):
-                self.speedLeft = 0.0
+                self.speedLeft = 0
             if (self.speedRight < 0):
-                self.speedRight = 0.0
+                self.speedRight = 0
         else:
             if millis()-self.lastVectorTime > self.noLineTimeout:
                 self.noVector = True
-                self.speedLeft = 0.0
-                self.speedRight = 0.0
+                self.speedLeft = 0
+                self.speedRight = 0
 
         return self.speedRight, self.speedLeft
+
 
 class ArduSerial(serial.Serial):
     comport=None
@@ -461,6 +507,8 @@ class ArduSerial(serial.Serial):
 
 class VirtualSerialHandler:
     Serial=None
+    readingLine=False
+    linebuffer=bytearray()
 
     def printHelp(self):
         self.Serial.print("SmartMainNav v.")
@@ -495,135 +543,431 @@ class VirtualSerialHandler:
     def start(self):
         self.Serial=ArduSerial('COM11')
         self.Serial.begin(115200)
-        self.Serial.println("separete_drive_5 ")
+        self.Serial.println("separete_drive_5")
         self.printHelp()
 
     def update(self):
         global navigationMode
 
-        if self.Serial.available():
-            inCh=self.Serial.read()
-            ch=inCh.decode()
+        if not self.readingLine:
+            if self.Serial.available():
+                inCh=self.Serial.read()
+                ch=inCh.decode(errors="ignore")
 
-            if ch=='?':
-                self.printHelp()
-            elif ch=='v': #verbose
-                self.Serial.print('v')
-            elif ch=='b': #verbose drive
-                self.Serial.print('b')
-            elif ch=='f': #move forward fast
-                self.Serial.println("moving FastForward")
-                manualdrive.fastForward()
-            elif ch=='w': #move forward
-                self.Serial.println("moving Forward")
-                manualdrive.forward()
-            elif ch=='s': # move backwards
-                self.Serial.println("moving Backwards")
-                manualdrive.backwards()
-            elif ch=='a': # turnleft90
-                self.Serial.println("Turning Left")
-                manualdrive.turnLeft90()
-            elif ch=='d': # turnoright90
-                self.Serial.println("Turning Right")
-                manualdrive.turnRight90()
-            elif ch=='z': # turnleft90_inplace
-                self.Serial.print("z")
-                manualdrive.turnLeft90_inPlace()
-            elif ch=='c': # turnright90_inplace
-                self.Serial.print("z")
-                manualdrive.turnRight90_inPlace()
-            elif ch=='0' or ch=='q': # STOP
-                self.Serial.println("STOP")
-                navigationMode = NAVIGATION_MODE_MANUAL
-                manualdrive.stop()
-            elif ch=='g': # emergency reset
-                self.Serial.print("g")
-            elif ch=='p': # pixy drive
-                self.Serial.println("Pixy Drive Activated...")
-                navigationMode = NAVIGATION_MODE_PIXY
-            elif ch=='r': # realsense drive
-                self.Serial.println("Realsense Drive Activated...")
-                navigationMode = NAVIGATION_MODE_REALSENSE
-            elif ch == 'j':  # joystick drive
-                self.Serial.println("Realsense Drive Activated...")
-                navigationMode = NAVIGATION_MODE_JOYSTICK
+                if ch=='?':
+                    self.printHelp()
+                elif ch=='v': #verbose
+                    self.Serial.print('v')
+                elif ch=='b': #verbose drive
+                    self.Serial.print('b')
+                elif ch=='f': #move forward fast
+                    self.Serial.println("moving FastForward")
+                    navigationMode = NAVIGATION_MODE_MANUAL
+                    manualdrive.fastForward()
+                elif ch=='w': #move forward
+                    self.Serial.println("moving Forward")
+                    navigationMode = NAVIGATION_MODE_MANUAL
+                    manualdrive.forward()
+                elif ch=='s': # move backwards
+                    self.Serial.println("moving Backwards")
+                    navigationMode = NAVIGATION_MODE_MANUAL
+                    manualdrive.backwards()
+                elif ch=='a': # turnleft90
+                    self.Serial.println("Turning Left")
+                    navigationMode = NAVIGATION_MODE_MANUAL
+                    manualdrive.turnLeft90()
+                elif ch=='d': # turnoright90
+                    self.Serial.println("Turning Right")
+                    navigationMode = NAVIGATION_MODE_MANUAL
+                    manualdrive.turnRight90()
+                elif ch=='z': # turnleft90_inplace
+                    self.Serial.print("z")
+                    navigationMode = NAVIGATION_MODE_MANUAL
+                    manualdrive.turnLeft90_inPlace()
+                elif ch=='c': # turnright90_inplace
+                    self.Serial.print("z")
+                    navigationMode = NAVIGATION_MODE_MANUAL
+                    manualdrive.turnRight90_inPlace()
+                elif ch=='t' or ch=='u': # Z AxisInfo
+                    self.Serial.println(str(motionData['accZ']))
+                elif ch=='0' or ch=='q': # STOP
+                    self.Serial.println("STOP")
+                    navigationMode = NAVIGATION_MODE_MANUAL
+                    manualdrive.stop()
+                elif ch=='g': # emergency reset
+                    self.Serial.println("EMERGENCY RESET")
+                    navigationMode = NAVIGATION_MODE_MANUAL
+                    manualdrive.stop()
+                    motion.emergencyStop=False
+                elif ch=='p': # pixy drive
+                    self.Serial.println("Pixy Drive Activated...")
+                    navigationMode = NAVIGATION_MODE_PIXY
+                elif ch == 'r': # realsense drive
+                    self.Serial.println("Realsense Drive Activated...")
+                    navigationMode = NAVIGATION_MODE_REALSENSE
+                elif ch == 'j':  # joystick drive
+                    self.Serial.println("Joystick Drive Activated...")
+                    navigationMode = NAVIGATION_MODE_JOYSTICK
+                elif ch == '4':  # lidar toggle
+                    global lidarEnabled
+                    lidarEnabled=not(lidarEnabled)
+                    print ("Lidar Enabled: " + str(lidarEnabled))
+                    self.Serial.println("Lidar Enabled: " + str(lidarEnabled))
 
-            elif ch=='K': # KART TEST
-                self.Serial.println("KART CONNECTION SUCCESS")
-            elif ch=='e': # encoder getMts
-                self.Serial.println(str(motionData['enc']))
-                self.Serial.println(str(encData.distance))
+                elif ch=='K': # KART TEST
+                    self.Serial.println("KART CONNECTION SUCCESS")
+                elif ch=='e': # encoder getMts
+                    self.Serial.println(str(motionData['enc']))
+                    self.Serial.println(str(encData.distance))
 
-            elif ch=='x':
-                self.Serial.println("{vmot;"+str(motionData['vmot'])+";}")
-                self.Serial.println("{vcomp;" + str(motionData['vcomp']) + ";}")
-            elif ch=='3':
-                self.Serial.println("ENCODER RESET");
-                encData.resetDistance()
+                elif ch=='x':
+                    self.Serial.println("{vmot;"+str(motionData['vmot'])+";}")
+                    self.Serial.println("{vcomp;" + str(motionData['vcomp']) + ";}")
 
-            elif ch=='4':
-                pixydrive.pGain-=0.1
-                self.Serial.println("PGAIN:"+ str(pixydrive.pGain))
-            elif ch=='5':
-                pixydrive.pGain += 0.1
-                self.Serial.println("PGAIN:"+ str(pixydrive.pGain))
-            elif ch=='6':
-                pixydrive.iGain-=0.1
-                self.Serial.println("IGAIN:"+ str(pixydrive.iGain))
-            elif ch=='7':
-                pixydrive.iGain += 0.1
-                self.Serial.println("IGAIN:"+ str(pixydrive.iGain))
-            elif ch=='8':
-                pixydrive.dGain-=0.1
-                self.Serial.println("DGAIN:"+ str(pixydrive.dGain))
-            elif ch=='9':
-                pixydrive.dGain += 0.1
-                self.Serial.println("DGAIN:"+ str(pixydrive.dGain))
-            elif ch == '.':
-                self.Serial.println("-------------------------------")
-                self.Serial.println("PGAIN:"+ str(pixydrive.pGain))
-                self.Serial.println("IGAIN:"+ str(pixydrive.iGain))
-                self.Serial.println("DGAIN:"+ str(pixydrive.dGain))
+                elif ch=='3':
+                    self.Serial.println("ENCODER RESET");
+                    encData.resetDistance()
+                elif ch == '{':
+                    self.linebuffer = bytearray()
+                    self.linebuffer.append(inCh[0])
+                    self.readingLine = True
 
-pixydrive = pixyDrive()
+
+        else:
+            if self.Serial.available():
+                inCh = self.Serial.read()
+                ch = inCh.decode(errors="ignore")
+
+                self.linebuffer.append(inCh[0])
+                if ch == '}':
+                    self.readingLine = False
+                    print("CMD:", self.linebuffer.decode(errors="ignore"))
+                    self.parseLine(self.linebuffer.decode(errors="ignore"))
+                elif ch == '\n' or ch == '\r':
+                    self.readingLine = False
+
+    def parseLine(self, cmdString):
+        global navigationMode
+        try:
+            cmd = json.loads(cmdString)
+        except Exception as e:
+            print ("PARSELINE - ERROR PARSING:", cmdString)
+            print (e)
+            return
+
+        if "sp" in cmd:
+            motion.setNavSpeed(cmd['sp'])
+        if "gofw" in cmd:
+            cmddrive.addQueueGoForward(cmd['gofw'])
+            navigationMode = NAVIGATION_MODE_CMD
+        if "turn" in cmd:
+            cmddrive.addQueueTurn(cmd['turn'])
+            navigationMode = NAVIGATION_MODE_CMD
+    def sendMsg(self, type, details):
+        msgStr="{" + str(type) + ";" + str(details) +";}"
+        self.Serial.println (msgStr)
+
+    # --- END CLASS --------------------------------
+
+class CmdDrive:
+    STATUS_DONE=0
+    STATUS_RUNNING_FWD=1
+    STATUS_RUNNING_TURN= 2
+    STATUS_RUNNING_WAIT = 3
+    status=0
+
+    startDistance=0
+    setDistance=0
+
+    startAngle=0
+    setAngle=0
+    dstAngle=0
+
+    speedLeft=0
+    speedRight=0
+
+    maxSpeed=0.20
+    minSpeed=0.10
+
+    cmdQueue=[]
+
+    previousNavMode=NAVIGATION_MODE_MANUAL
+
+    def update(self):
+        encDistance=motionData['enc']
+        accAngle=motionData['accZ']
+
+        self.speedLeft = 0
+        self.speedRight = 0
+        # AVANCE
+        if self.status==self.STATUS_RUNNING_FWD:
+            travelled=encDistance-self.startDistance
+            error=(self.setDistance-travelled) / self.setDistance
+            #print (error)
+            if travelled < self.setDistance:
+                if self.setDistance-travelled > 0.2:
+                    self.speedLeft = self.maxSpeed
+                    self.speedRight = self.maxSpeed
+                else:
+                    self.speedLeft = self.maxSpeed * error
+                    self.speedRight = self.maxSpeed * error
+                    if self.speedLeft < self.minSpeed:
+                        self.speedLeft = self.minSpeed
+                    if self.speedRight < self.minSpeed:
+                        self.speedRight = self.minSpeed
+
+            else:
+                self.cmdFinished()
+        # GIRO
+        if self.status == self.STATUS_RUNNING_TURN:
+            # SI ESTOY DOBLANDO A LA DERECHA
+            if self.setAngle > 0:
+                if self.startAngle > self.dstAngle:
+                    if accAngle >=0:
+                        accAngle=accAngle-360
+
+                if accAngle < self.dstAngle:
+                    self.speedLeft = self.maxSpeed
+                    if abs(abs(accAngle) - abs(self.dstAngle)) < 8:
+                        self.speedLeft = self.minSpeed
+                else:
+                    self.cmdFinished()
+
+            # SI ESTOY DOBLANDO A LA IZQUIERDA
+            else:
+                if self.startAngle < self.dstAngle:
+                    if accAngle <= 0:
+                        accAngle = accAngle + 360
+
+                if accAngle > self.dstAngle:
+                    self.speedRight = self.maxSpeed
+                    if abs(abs(accAngle) - abs(self.dstAngle)) < 8:
+                        self.speedRight = self.minSpeed
+                else:
+                    self.cmdFinished()
+
+        return self.speedRight, self.speedLeft
+
+    def cmdFinished(self):
+        global navigationMode
+        self.status=self.STATUS_DONE
+        if len(self.cmdQueue) == 0:
+            print ("CMD NAV FINISHED")
+            print (self.previousNavMode)
+            navigationMode = self.previousNavMode
+            vser.sendMsg("ex", "cmddone")
+
+
+
+    def emptyQueue(self):
+        self.cmdQueue.clear()
+        self.status = self.STATUS_DONE
+
+    def processQueue(self):
+        #print(self.cmdQueue)
+        if self.status == self.STATUS_DONE and len(self.cmdQueue) > 0:
+            cmd=self.cmdQueue[0]
+            if cmd[0] == self.STATUS_RUNNING_FWD:
+                self.goForward(cmd[1])
+            elif cmd[0] == self.STATUS_RUNNING_TURN:
+                self.turn(cmd[1])
+            self.cmdQueue.pop(0)
+
+
+
+    def addQueueGoForward (self, distance):
+        if navigationMode!=NAVIGATION_MODE_CMD:
+            self.previousNavMode=navigationMode
+        self.cmdQueue.append([self.STATUS_RUNNING_FWD, distance])
+
+    def addQueueTurn(self, angle):
+        if navigationMode!=NAVIGATION_MODE_CMD:
+            self.previousNavMode=navigationMode
+        self.cmdQueue.append([self.STATUS_RUNNING_TURN, angle])
+
+    def goForward(self, distance):
+        if distance <= 0:
+            self.status=self.STATUS_DONE
+            return
+        else:
+            self.status=self.STATUS_RUNNING_FWD
+            self.startDistance=motionData['enc']
+            self.setDistance=distance
+
+    def turn(self, angle):
+        if angle > 180 or angle == 0 or angle < -180:
+            self.status = self.STATUS_DONE
+            return
+        else:
+            self.status=self.STATUS_RUNNING_TURN
+            self.startAngle=motionData['accZ']
+            self.setAngle=angle
+            self.dstAngle=self.startAngle+angle
+            if self.dstAngle > 180:
+                self.dstAngle = self.dstAngle - 360
+            elif self.dstAngle < -180:
+                self.dstAngle = self.dstAngle + 360
+
+
+class Motion:
+    ABSOLUTE_MAX_SPEED=1.0
+    spMax=0.32
+    spRight=0.0
+    spLeft=0.0
+    emergencyStop=False
+
+    def setNavSpeed(self, navSpeed):
+        if navSpeed > self.ABSOLUTE_MAX_SPEED:
+            navSpeed=self.ABSOLUTE_MAX_SPEED
+        self.spMax=navSpeed
+
+    def setWheelsSpeedAbsolute(self, spRight, spLeft):
+        self.spRight=spRight
+        self.spLeft=spLeft
+
+    def setWheelSpeedPercentage(self, spRight, spLeft):
+        self.spRight=(self.spMax * spRight) / 100
+        self.spLeft=(self.spMax * spLeft) / 100
+
+    def reduceWheelsSpeed (self, ratio):
+        if ratio > 0:
+            self.spRight=self.spRight/ratio
+            self.spLeft=self.spLeft/ratio
+
+    def getWheelsSpeed(self):
+        return self.spRight, self.spLeft
+
+    def updateMotors(self):
+        if self.emergencyStop==True:
+            self.spRight=0
+            self.spLeft=0
+        megaWrite(self.spRight, self.spLeft)
+
+print ("SETTING DRIVE MODES ")
+
+
+pixydrive = PixyDrive()
 manualdrive = ManualDrive()
+realsenseDrive = RealsenseDrive()
+cmddrive = CmdDrive()
+joydrive = JoyDrive()
+
+print ("STARTING VIRTUAL SERIAL")
+vser=VirtualSerialHandler()
+vser.start()
+
+print ("ENCODER")
+encData=EncoderData()
+motion = Motion()
 
 print ("Waiting 5 seconds")
 time.sleep(5)
 print ("READY to Drive!")
 
-vser=VirtualSerialHandler()
-vser.start()
 
-encData=EncoderData()
 
-spMax=0.32
-spRight=0.0
-spLeft=0.0
+lidarPause=False
+lidarPauseTime=0
+
+lidarEnabled=True
 
 while True:
+    #print ("ACCZ:", str(motionData['accZ']), "START:", cmddrive.startAngle, "DST:", cmddrive.dstAngle, "SET:", cmddrive.setAngle)
     vser.update()
     encData.update()
+    encData.calcSpeed()
+    #print ("ENC-SPEED:", encData.speed)
+    realsense_spRight, realsense_spLeft = realsenseDrive.update(rsData=realsenseMins)
+    pixy_spRight, pixy_spLeft = pixydrive.update(pixyData)
 
+    if navigationMode == NAVIGATION_MODE_MANUAL:
+        lidarPause=False
+        encData.resetTimer()
+        cmddrive.emptyQueue()
 
+        motion.setWheelsSpeedAbsolute(manualdrive.speedRight, manualdrive.speedLeft)
+        motion.updateMotors()
 
-    if navigationMode==NAVIGATION_MODE_MANUAL:
-        spLeft=manualdrive.speedLeft
-        spRight=manualdrive.speedRight
-        megaWrite(spRight, spLeft)
-    elif navigationMode==NAVIGATION_MODE_PIXY:
+    elif navigationMode == NAVIGATION_MODE_JOYSTICK:
+        encData.resetTimer()
+
+        joydrive.update(joyData)
+        #print(joydrive.speedRight, joydrive.speedLeft)
+        motion.setWheelsSpeedAbsolute(joydrive.speedRight, joydrive.speedLeft)
+        motion.updateMotors()
+
+    elif navigationMode == NAVIGATION_MODE_CMD:
+        cmddrive.processQueue()
+        cmd_spRight, cmd_spLeft = cmddrive.update()
+        motion.setWheelsSpeedAbsolute(cmd_spRight, cmd_spLeft)
+
+    elif navigationMode == NAVIGATION_MODE_PIXY:
+        print ("PIXY ONLY DRIVE", "PID ERROR:", pixydrive.error)
         manualdrive.stop()
-        pixy_spRight, pixy_spLeft=pixydrive.update(pixyData)
-        spRight=(spMax * pixy_spRight) / 100
-        spLeft=(spMax * pixy_spLeft) / 100
-
-        megaWrite(spRight, spLeft)
+        motion.setWheelSpeedPercentage(pixy_spRight, pixy_spLeft)
         if pixydrive.noVector==True:
             print ("PIXY NO LINE!")
+            megaBeep(250, 1)
+            vser.sendMsg("ex", "pixyoff")
             navigationMode=NAVIGATION_MODE_MANUAL
-            manualdrive.stop()
-    elif navigationMode==NAVIGATION_MODE_REALSENSE:
+
+    elif navigationMode == NAVIGATION_MODE_REALSENSE:
         manualdrive.stop()
+        motion.setWheelSpeedPercentage(realsense_spRight, realsense_spLeft)
+        if realsenseDrive.barDetected == True:
+            print ("RS DRIVE:", "BAR DETECTED:", realsenseDrive.barDetected, "MINS:", realsenseMins, "PID ERR:", realsenseDrive.error)
+        elif pixydrive.noVector == False:
+            print("RS DRIVE: NO BAR - USING PIXY")
+            motion.setWheelSpeedPercentage(pixy_spRight, pixy_spLeft)
+        else:
+            megaBeep(250, 1)
+            print("RS DRIVE: NO REALSENSE - NO PIXY - STOPPING!")
+            navigationMode = NAVIGATION_MODE_MANUAL
+            manualdrive.stop()
+    # CRITICT TILT
+    if abs(motionData['accX']) >= 4 or abs(motionData['accY']) >= 4:
+        if motion.emergencyStop==False:
+            vser.sendMsg("ex", "critictilt")
+            megaBeep(500, 1)
+        manualdrive.stop()
+        motion.emergencyStop=True
+
+    # PAUSA POR LIDAR
+    if (navigationMode != NAVIGATION_MODE_MANUAL):
+        if len(lidarMins) > 0:
+            if min(lidarMins) < 500:
+
+                if lidarEnabled==True:
+                    if lidarPause==False:
+                        print("OBJETO A MENOS DE 0.5 METROS -", lidarMins)
+                        megaBeep(50, 3)
+                        vser.sendMsg("ex", "upause")
+                    lidarPause=True
+                    motion.setWheelsSpeedAbsolute(0, 0)
+                    encData.resetTimer()
+                    lidarPauseTime=millis()
+
+            elif min(lidarMins) < 800:
+                print ("OBJETO A MENOS DE 0.8 METROS -", lidarMins)
+                if lidarEnabled==True:
+                    motion.reduceWheelsSpeed(ratio=2)
+
+        if (millis()-lidarPauseTime) > 2000 or lidarEnabled==False:
+            lidarPause = False
+            motion.updateMotors()
+
+    # SE DETIENE POR FALTA DE ENCODER
+    noEncoderTimeout=3000
+    if navigationMode==NAVIGATION_MODE_CMD:
+        noEncoderTimeout=6000
+
+
+    if navigationMode != NAVIGATION_MODE_MANUAL and encData.getTimer() > noEncoderTimeout and lidarPause==False:
+        print("NO ENCODER DATA")
+        vser.sendMsg("ex", "enoreading")
+        navigationMode = NAVIGATION_MODE_MANUAL
+        manualdrive.stop()
+
 
 
     time.sleep(0.025)
