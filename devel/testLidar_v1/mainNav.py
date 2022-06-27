@@ -29,103 +29,168 @@ navigationMode=NAVIGATION_MODE_MANUAL
 
 
 
+# def pixyClient():
+#     address = ('localhost', scsvc.PIXY_RAW)
+#     tcp_connected = True
+#
+#
+#     try:
+#         conn = Client(address)
+#     except:
+#         print("CANT CONNECT PIXY SERVICE", scsvc.PIXY_RAW )
+#         tcp_connected = False
+#         exit(-1)
+#
+#     def readData(conn):
+#         global pixyData
+#         while True:
+#             if tcp_connected == True:
+#                 pixyData = conn.recv()
+#             else:
+#                 pixyData={'x0':-1,'y0':-1,'x1':-1,'y1':-1,'v':0, 'i':0}
+#         conn.close()
+#     thReadLidarMin = th.Thread(target=readData, args=(conn,))
+#     thReadLidarMin.setDaemon(True)
+#     thReadLidarMin.start()
 
-def pixyClient():
-    address = ('localhost', scsvc.PIXY_RAW)
-    tcp_connected = True
+# def joystickClient():
+#     address = ('localhost', scsvc.JOYSTICK_RAW)
+#     tcp_connected = True
+#
+#     try:
+#         conn = Client(address)
+#     except:
+#         print("CANT CONNECT JOYSTICK SERVICE", scsvc.JOYSTICK_RAW )
+#         tcp_connected = False
+#         exit(-1)
+#
+#     def readData(conn):
+#         global joyData
+#         while True:
+#             if tcp_connected == True:
+#                 joyData = conn.recv()
+#                 #print (joyData)
+#             else:
+#                 joyData=[0.0, 0.0, 0.0, 0.0]
+#
+#         conn.close()
+#     thReadLidarMin = th.Thread(target=readData, args=(conn,))
+#     thReadLidarMin.setDaemon(True)
+#     thReadLidarMin.start()
 
-    try:
-        conn = Client(address)
-    except:
-        print("CANT CONNECT PIXY SERVICE", scsvc.PIXY_RAW )
-        tcp_connected = False
-        exit(-1)
-
-    def readData(conn):
-        global pixyData
-        while True:
-            if tcp_connected == True:
-                pixyData = conn.recv()
-            else:
-                pixyData={'x0':-1,'y0':-1,'x1':-1,'y1':-1,'v':0, 'i':0}
-        conn.close()
-    thReadLidarMin = th.Thread(target=readData, args=(conn,))
-    thReadLidarMin.setDaemon(True)
-    thReadLidarMin.start()
-
-def joystickClient():
-    address = ('localhost', scsvc.JOYSTICK_RAW)
-    tcp_connected = True
-
-    try:
-        conn = Client(address)
-    except:
-        print("CANT CONNECT JOYSTICK SERVICE", scsvc.JOYSTICK_RAW )
-        tcp_connected = False
-        exit(-1)
-
-    def readData(conn):
-        global joyData
-        while True:
-            if tcp_connected == True:
-                joyData = conn.recv()
-                #print (joyData)
-            else:
-                joyData=[0.0, 0.0, 0.0, 0.0]
-
-        conn.close()
-    thReadLidarMin = th.Thread(target=readData, args=(conn,))
-    thReadLidarMin.setDaemon(True)
-    thReadLidarMin.start()
-
-def lidarMinClient():
-    address = ('localhost', scsvc.LIDAR_MINS)
-    tcp_connected = True
-
-    try:
-        conn = Client(address)
-    except:
-        print("CANT CONNECT LIDAR MIN SERVICE 6001")
-        tcp_connected = False
-        #exit(-1)
-
-    def readLidarMin(conn):
-        global lidarMins
-        while True:
-            if tcp_connected == True:
-                localLidarMins = conn.recv()
-                lidarMins=localLidarMins
-                #print(localLidarMins)
-        conn.close()
-    thReadLidarMin = th.Thread(target=readLidarMin, args=(conn,))
-    thReadLidarMin.setDaemon(True)
-    thReadLidarMin.start()
+# def lidarMinClient():
+#     address = ('localhost', scsvc.LIDAR_MINS)
+#     tcp_connected = True
+#
+#     try:
+#         conn = Client(address)
+#
+#     except:
+#         print("CANT CONNECT LIDAR MIN SERVICE 6001")
+#         tcp_connected = False
+#         exit(-1)
+#
+#     def readLidarMin(conn):
+#         global lidarMins
+#         while True:
+#             if tcp_connected == True:
+#                 localLidarMins = conn.recv()
+#                 lidarMins=localLidarMins
+#                 #print(localLidarMins)
+#         conn.close()
+#     thReadLidarMin = th.Thread(target=readLidarMin, args=(conn,))
+#     thReadLidarMin.setDaemon(True)
+#     thReadLidarMin.start()
 
 def realsenseMinClient():
     address = ('localhost', scsvc.REALSENSE_MINS)
     tcp_connected = True
-
+    global realsenseMinsAvailable
     try:
         conn = Client(address)
+        realsenseMinsAvailable = True
     except:
         print("CANT CONNECT REALSENSE MIN SERVICE 6022")
         tcp_connected = False
-        exit(-1)
+        realsenseMinsAvailable = False
+        #exit(-1)
 
     def readRealsenseMin(conn):
         global realsenseMins
+        global realsenseMinsAvailable
         while True:
             if tcp_connected == True:
                 localRealsenseMins = conn.recv()
                 realsenseMins=localRealsenseMins
                 #print(localRealsenseMins)
         conn.close()
+
     thReadRealsenseMin = th.Thread(target=readRealsenseMin, args=(conn,))
     thReadRealsenseMin.setDaemon(True)
     thReadRealsenseMin.start()
 
     #thReadRealsenseMin.join()
 
+class ServiceClient:
+    def connect(self):
+        try:
+            address = (self.serveraddress, self.port)
+            self.conn = Client(address)
+            self.available=True
+        except:
+            print("CANT CONNECT PORT", self.port, "ON", self.serveraddress)
+            self.available=False
+
+    def dataUpdate(self):
+        raise NotImplementedError
+
+    def connWorker(self):
+        while True:
+            if self.available == True:
+                try:
+                    self.dataUpdate()
+                except:
+                    break
+            else:
+                break
+        self.available = False
+
+    def __init__(self, serveraddress, port):
+        self.connThread=None
+        self.conn=None
+        self.available=False
+        self.serveraddress=serveraddress
+        self.port=port
+
+        self.connect()
+        self.connThread=th.Thread(target=self.connWorker)
+        self.connThread.setDaemon(True)
+        self.connThread.start()
+
+class RealsenseMinsClient(ServiceClient):
+    def dataUpdate(self):
+        global realsenseMins
+        localRealsenseMins = self.conn.recv()
+        realsenseMins = localRealsenseMins
+
+
+class LidarMinClient(ServiceClient):
+    def dataUpdate(self):
+        global lidarMins
+        localLidarMins = self.conn.recv()
+        lidarMins = localLidarMins
+
+
+class JoystickClient(ServiceClient):
+    def dataUpdate(self):
+        global joyData
+        joyData = self.conn.recv()
+
+
+class PixyClient(ServiceClient):
+    def dataUpdate(self):
+        global pixyData
+        pixyData = self.conn.recv()
 
 arduino_mega = serial.Serial(port='COM4', baudrate=115200)
 time.sleep(2)
@@ -160,16 +225,25 @@ def megaBeep (time=100, rep=1):
     dataStr="{\"beep\":["+str(time)+","+str(rep)+"]}\n"
     arduino_mega.write(dataStr.encode('utf-8'))
 
+
 thMegaReceive = th.Thread(target=megaReceive)
 thMegaReceive.setDaemon(True)
 thMegaReceive.start()
 
 print ("STARTING ")
 
-realsenseMinClient()
-lidarMinClient()
-joystickClient()
-pixyClient()
+#realsenseMinClient()
+rsMinsClient=RealsenseMinsClient(scsvc.REALSENSE_MINS_SERVER, scsvc.REALSENSE_MINS)
+print("REALSENSE MINS:", rsMinsClient.available)
+lidarMinClient=LidarMinClient(scsvc.LIDAR_MINS_SERVER, scsvc.LIDAR_MINS)
+print("LIDAR MINS:", lidarMinClient.available)
+joystickClient=JoystickClient(scsvc.JOYSTICK_RAW_SERVER, scsvc.JOYSTICK_RAW)
+print("JOYSTICK:", joystickClient.available)
+pixyClient=PixyClient(scsvc.PIXY_RAW_SERVER, scsvc.PIXY_RAW)
+print("PIXY:", pixyClient.available)
+
+#joystickClient()
+#pixyClient()
 
 print ("CLIENTS STARTED")
 
@@ -872,6 +946,7 @@ lidarPauseTime=0
 lidarEnabled=True
 
 while True:
+
     #print ("ACCZ:", str(motionData['accZ']), "START:", cmddrive.startAngle, "DST:", cmddrive.dstAngle, "SET:", cmddrive.setAngle)
     vser.update()
     encData.update()

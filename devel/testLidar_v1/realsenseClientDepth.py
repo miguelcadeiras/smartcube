@@ -2,6 +2,7 @@ from multiprocessing.connection import Client
 import cv2
 #import pygame
 import time
+import sc_services
 import numpy as np
 
 #pygame.init()
@@ -11,7 +12,7 @@ import numpy as np
 #pygame.display.update()
 
 
-address = ('localhost', 6021)
+address = (sc_services.REALSENSE_DEPTH_SERVER, sc_services.REALSENSE_DEPTH)
 conn = Client(address)
 lastTime=0
 mouseX=0
@@ -26,6 +27,8 @@ def mouseEvent(event,x,y,flags,param):
 cv2.namedWindow('image')
 cv2.setMouseCallback('image',mouseEvent)
 
+lastFrameTime=0
+
 while True:
     #pygame.event.pump()
     #color_image=conn.recv()
@@ -38,9 +41,10 @@ while True:
 
     #cv2.imshow("image", depth_colormap[:100,100:300])
     cv2.imshow("image", depth_colormap)
-    time.sleep(0.010)
+    #time.sleep(0.010)
+    print (time.time()-lastFrameTime)
     key = cv2.waitKey(1) & 0xFF
-
+    lastFrameTime = time.time()
     if key == ord("q"):
         break
 

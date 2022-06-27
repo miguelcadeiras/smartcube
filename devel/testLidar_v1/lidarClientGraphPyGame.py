@@ -27,21 +27,21 @@ connRSMins=None
 connPixy=None
 
 try:
-	address = ('localhost', scsvc.LIDAR_RAW)
+	address = (scsvc.LIDAR_RAW_SERVER, scsvc.LIDAR_RAW)
 	connLidar = Client(address)
 except Exception as e:
-	print ("ERROR:", e)
+	print ("ERROR LIDAR:", e)
 
 try:
-	address2 = ('localhost', scsvc.REALSENSE_MINS)
+	address2 = (scsvc.REALSENSE_MINS_SERVER, scsvc.REALSENSE_MINS)
 	connRSMins = Client(address2)
 except Exception as e:
-	print ("ERROR:", e)
+	print ("ERROR REALSENSE MINS:", e)
 try:
-	address3 = ('localhost', scsvc.PIXY_RAW)
+	address3 = (scsvc.PIXY_RAW_SERVER, scsvc.PIXY_RAW)
 	connPixy = Client(address3)
 except Exception as e:
-	print ("ERROR:", e)
+	print ("ERROR PIXY:", e)
 
 np_distance=None
 realsenseMins=None

@@ -63,7 +63,7 @@ class dataColector:
 
 
 		try:
-			serviceAddress = ('localhost', sc_services.REALSENSE_DEPTH)
+			serviceAddress = (sc_services.REALSENSE_DEPTH_SERVER, sc_services.REALSENSE_DEPTH)
 			conn = Client(serviceAddress)
 		except:
 			logdata.log("ERROR: Cant INIT REALSENSE MINS")

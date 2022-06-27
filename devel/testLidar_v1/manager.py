@@ -11,7 +11,68 @@ import time
 
 import threading as th
 
-autoStart=True
+autoStart=False
+
+
+import subprocess
+#p=subprocess.Popen('python C:/smartcube/devel/testLidar_v1/mainNav.py', shell=True, stdout=subprocess.PIPE)
+
+
+class navProc:
+    procHandler=None
+    t1=None
+
+    def __init__(self, text):
+        self.tkText = text
+
+    def logOutput(self):
+        while True:
+
+
+            line=self.procHandler.stdout.read()
+            if line:
+                self.tkText.addText(line)
+            time.sleep(0.010)
+
+    def isRuninng(self):
+        if self.procHandler is not None:
+            if self.procHandler.is_alive():
+                return True
+        return False
+
+    def start(self):
+        if self.isRuninng():
+            print ("ALREADY RUNNING")
+            self.tkText.addText("ALREADY RUNNING")
+            return
+
+        print("STARTING IN A NEW CONSOLE")
+        self.tkText.addText("STARTING IN A NEW CONSOLE")
+        #self.tkText.clearText()
+        #self.procHandler = subprocess.Popen('python.exe C:/smartcube/devel/testLidar_v1/mainNav.py', shell=True, creationflags = subprocess.CREATE_NEW_CONSOLE )
+        self.procHandler = subprocess.Popen('python.exe C:/smartcube/devel/testLidar_v1/mainNav.py', shell=False,
+                                            creationflags=subprocess.CREATE_NEW_CONSOLE)
+        self.t1=th.Thread(target=self.logOutput)
+        self.t1.setDaemon(True)
+        self.t1.start()
+
+    def kill (self):
+        print ("KILLING")
+        import psutil
+        parentPid=self.procHandler.pid
+        print (parentPid)
+        parent=psutil.Process(parentPid)
+        for child in parent.children(recursive=True):  # or parent.children() for recursive=False
+            child.kill()
+        parent.kill()
+
+        self.tkText.clearText()
+        self.tkText.addText("PROCESS STOPPED!")
+        #self.procHandler.terminate()
+        self.procHandler=None
+
+
+
 
 class externProc:
 
@@ -104,7 +165,23 @@ class tkProcNav():
         self.btnStop.pack(padx=5, side=LEFT)
 
         self.text.pack(padx=5, pady=5)
+    def addText(self, textToInsert):
+        self.text.configure(state='normal')
+        self.text.insert(END, textToInsert)
+        self.text.yview(END)
+        lineCount=int(self.text.index('end-1c').split('.')[0])
+        if lineCount > 100:
+            self.text.delete("1.0", "2.0")
+        self.text.configure(state='disabled')
+    def clearText(self):
+        self.text.configure(state='normal')
+        self.text.delete("1.0", "end")
+        self.text.configure(state='disabled')
+    def setStartFunc(self, startFunc):
+        self.btnStart.configure(command=startFunc)
 
+    def setStopFunc(self, stopFunc):
+        self.btnStop.configure(command=stopFunc)
 
 if __name__ == "__main__":
     root = Tk()
@@ -132,6 +209,9 @@ if __name__ == "__main__":
     procFrame5 = tkProcFrame(frameServices, "Pixy Service")
     procFrame6 = tkProcFrame(frameServices, "Joystick Service")
 
+    z1= navProc(mainNavFrame)
+    mainNavFrame.setStartFunc(z1.start)
+    mainNavFrame.setStopFunc(z1.kill)
 
     p1 = externProc(procFrame1, "lidarService", lidarServiceV2.serviceStart)
     procFrame1.setStartFunc(p1.start)
@@ -161,7 +241,8 @@ if __name__ == "__main__":
     if autoStart:
         # SERVICIOS SIN DEPENDENCIA
         p1.start()
-        p3.start()
+        #p3.start()
+        #p4.start()
         p5.start()
         p6.start()
 
@@ -169,20 +250,16 @@ if __name__ == "__main__":
         def delayedStart():
             startDelay=8
             procFrame2.addText("STARING IN " + str(startDelay))
-            procFrame4.addText("STARING IN " + str(startDelay))
+
             time.sleep(startDelay)
             p2.start()
-            p4.start()
-            time.sleep (5)
-            root.iconify()
+
+            #time.sleep (5)
+            #root.iconify()
 
 
         t=th.Thread(target=delayedStart)
         t.start()
-
-
-
-
 
 
     root.mainloop()
