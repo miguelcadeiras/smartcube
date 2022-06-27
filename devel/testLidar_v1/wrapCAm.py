@@ -23,16 +23,17 @@ mac = "webcam"
 # print(getmac.getmac)
 def upload_file(img_path):
 
-    print("uploadStart")
+    # print("uploadStart")
     try:
         session = ftplib.FTP('cubik.smartcubik.com', "smartcubik", "Chocolatada123!")
         file = open(img_path, 'rb')  # file to send
         session.storbinary("STOR %s" % img_path, file)  # send the file
         file.close()  # close file and FTP
         session.quit()
-        print("uploadFinished")
+        # print("uploadFinished")
     except:
-        print("Something went wrong")
+        # pass
+        print("WrapCam.py Something went wrong")
 
 print("starting webcam")
 while (True):

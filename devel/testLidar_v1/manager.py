@@ -3,7 +3,7 @@ from tkinter.scrolledtext import *
 import multiprocessing
 import joystickService
 import lidarServiceV2
-import lidarMinsService
+import lidarMinsService,wrapCam_proc
 import realsenseService
 import realsenseMinsService
 import pixyService
@@ -16,6 +16,60 @@ autoStart=False
 
 import subprocess
 #p=subprocess.Popen('python C:/smartcube/devel/testLidar_v1/mainNav.py', shell=True, stdout=subprocess.PIPE)
+
+
+class camProc:
+    procHandler=None
+    t1=None
+
+    def __init__(self, text):
+        self.tkText = text
+
+    def logOutput(self):
+        while True:
+
+
+            line=self.procHandler.stdout.read()
+            if line:
+                self.tkText.addText(line)
+            time.sleep(0.010)
+
+    def isRuninng(self):
+        if self.procHandler is not None:
+            if self.procHandler.is_alive():
+                return True
+        return False
+
+    def start(self):
+        if self.isRuninng():
+            print ("ALREADY RUNNING")
+            self.tkText.addText("ALREADY RUNNING")
+            return
+
+        print("STARTING WEBCAM IN CONSOLE")
+        self.tkText.addText("STARTING WEBCAM IN CONSOLE")
+        #self.tkText.clearText()
+        #self.procHandler = subprocess.Popen('python.exe C:/smartcube/devel/testLidar_v1/mainNav.py', shell=True, creationflags = subprocess.CREATE_NEW_CONSOLE )
+        self.procHandler = subprocess.Popen('python.exe C:/smartcube/devel/testLidar_v1/wrapCAm.py', shell=False)
+                                            #creationflags=subprocess.CREATE_NEW_CONSOLE)
+        self.t1=th.Thread(target=self.logOutput)
+        self.t1.setDaemon(True)
+        self.t1.start()
+
+    def kill (self):
+        print ("KILLING")
+        import psutil
+        parentPid=self.procHandler.pid
+        print (parentPid)
+        parent=psutil.Process(parentPid)
+        for child in parent.children(recursive=True):  # or parent.children() for recursive=False
+            child.kill()
+        parent.kill()
+
+        self.tkText.clearText()
+        self.tkText.addText("PROCESS STOPPED!")
+        #self.procHandler.terminate()
+        self.procHandler=None
 
 
 class navProc:
@@ -183,7 +237,45 @@ class tkProcNav():
     def setStopFunc(self, stopFunc):
         self.btnStop.configure(command=stopFunc)
 
+class tkProcCam():
+    def __init__(self, root):
+        self.root=root
+        self.frame = Frame(self.root, relief="raised", height=20, width=150, border=2)
+        self.text = ScrolledText(self.frame, bg="#202020", fg="#a0a0a0", height='1', width='65', wrap=WORD)
+        self.label = Label(self.frame, text="CAM PROCESS")
+        self.btnStart = Button(self.frame, text="START")
+        self.btnStop = Button(self.frame, text="STOP")
+        self.frame.pack(pady=4, padx=4)
+
+        self.label.pack()
+        self.btnStart.pack(padx=5, side=LEFT)
+        self.btnStop.pack(padx=5, side=LEFT)
+
+        self.text.pack(padx=5, pady=5)
+    def addText(self, textToInsert):
+        self.text.configure(state='normal')
+        self.text.insert(END, textToInsert)
+        self.text.yview(END)
+        lineCount=int(self.text.index('end-1c').split('.')[0])
+        if lineCount > 100:
+            self.text.delete("1.0", "2.0")
+        self.text.configure(state='disabled')
+    def clearText(self):
+        self.text.configure(state='normal')
+        self.text.delete("1.0", "end")
+        self.text.configure(state='disabled')
+    def setStartFunc(self, startFunc):
+        self.btnStart.configure(command=startFunc)
+
+    def setStopFunc(self, stopFunc):
+        self.btnStop.configure(command=stopFunc)
+
+
+# HABRIA Q PONER UN INPUT FRAME PARA DEFINIR LA DISTANCIA DESDE EL REAL SENSE A LA CUAL QUEREMOS NAVEGAR
+# O DESDE LA OTRA APLICACION.. PERO DEBERÍAMOS DAR FEEDBACK A QUÉ DISTANCIA ESTAMOS NAVEGANDO.
+
 if __name__ == "__main__":
+
     root = Tk()
     root.geometry("1200x800")
     root.title("MANAGER")
@@ -191,16 +283,22 @@ if __name__ == "__main__":
 
 
     frameServices = Frame(root, height = 100)
-    frameNav = Frame(root, height=200)
+    frameRight = Frame(root, height= 500)
+    frameNav = Frame(frameRight, height=100)
+    frameCam = Frame(frameRight, height=100)
 #frame1 = Frame(root, height = 20)
 #frame2 = Frame(root, height = 20)
 #text = Text(frame1, bg="black", fg="white", bd=2, width=100, height=20)
 #text2 = Text(frame2, bg="black", fg="white", bd=2, width=100, height=20)
 
     frameServices.pack(side=LEFT, anchor=NW, padx=(10,10), pady=(10,10))
-    frameNav.pack (side=RIGHT, anchor=NE, padx=(10,10), pady=(10,10))
+    frameRight.pack(side=RIGHT, anchor=NE, padx=(10,10), pady=(10,10))
+    #frameNav.pack (side=LEFT, anchor=NE, padx=(10,10), pady=(10,10))
+    frameNav.pack(padx=(10, 10), pady=(10, 10))
+    frameCam.pack(padx=(10,10), pady=(10,10))
 
-    mainNavFrame=tkProcNav(frameNav)
+
+
 
     procFrame1 = tkProcFrame(frameServices, "Lidar Service")
     procFrame2 = tkProcFrame(frameServices, "Lidar Mins Service")
@@ -208,10 +306,20 @@ if __name__ == "__main__":
     procFrame4 = tkProcFrame(frameServices, "Realsense Mins Service")
     procFrame5 = tkProcFrame(frameServices, "Pixy Service")
     procFrame6 = tkProcFrame(frameServices, "Joystick Service")
+    # migue crap
+    # procFrame7 = tkProcFrame(frameServices, "Webcam Service")
+
+
+    mainNavFrame = tkProcNav(frameNav)
+    mainCamFrame = tkProcCam(frameCam)
 
     z1= navProc(mainNavFrame)
     mainNavFrame.setStartFunc(z1.start)
     mainNavFrame.setStopFunc(z1.kill)
+
+    z2=camProc(mainCamFrame)
+    mainCamFrame.setStartFunc(z2.start)
+    mainCamFrame.setStopFunc(z2.kill)
 
     p1 = externProc(procFrame1, "lidarService", lidarServiceV2.serviceStart)
     procFrame1.setStartFunc(p1.start)
@@ -221,13 +329,15 @@ if __name__ == "__main__":
     procFrame2.setStartFunc(p2.start)
     procFrame2.setStopFunc(p2.kill)
 
-    p3 = externProc(procFrame3, "realsenseService", realsenseService.serviceStart)
-    procFrame3.setStartFunc(p3.start)
-    procFrame3.setStopFunc(p3.kill)
+    # PARA CONECTAR REALSENSE A LA COMP.. DESCOMENTAR ESTAS LINEAS
 
-    p4 = externProc(procFrame4, "realsenseMinsService", realsenseMinsService.serviceStart)
-    procFrame4.setStartFunc(p4.start)
-    procFrame4.setStopFunc(p4.kill)
+    # p3 = externProc(procFrame3, "realsenseService", realsenseService.serviceStart)
+    # procFrame3.setStartFunc(p3.start)
+    # procFrame3.setStopFunc(p3.kill)
+    #
+    # p4 = externProc(procFrame4, "realsenseMinsService", realsenseMinsService.serviceStart)
+    # procFrame4.setStartFunc(p4.start)
+    # procFrame4.setStopFunc(p4.kill)
 
     p5=externProc(procFrame5, "pixyService", pixyService.serviceStart)
     procFrame5.setStartFunc(p5.start)
@@ -237,14 +347,24 @@ if __name__ == "__main__":
     procFrame6.setStartFunc(p6.start)
     procFrame6.setStopFunc(p6.kill)
 
+    # migueCrap
+    # p7 = externProc(procFrame7, "webCamService", wrapCam_proc.serviceStart())
+    # procFrame7.setStartFunc(p7.start)
+    # procFrame7.setStopFunc(p7.kill)
+
+
+
+
 
     if autoStart:
         # SERVICIOS SIN DEPENDENCIA
         p1.start()
+
         #p3.start()
         #p4.start()
         p5.start()
         p6.start()
+        z2.start()
 
         # SERVICIOS CON DEPENDENCIA
         def delayedStart():
@@ -253,6 +373,8 @@ if __name__ == "__main__":
 
             time.sleep(startDelay)
             p2.start()
+            time.sleep(startDelay)
+            z1.start()
 
             #time.sleep (5)
             #root.iconify()
@@ -267,9 +389,11 @@ if __name__ == "__main__":
 
     p1.kill()
     p2.kill()
-    p3.kill()
-    p4.kill()
+    # p3.kill()
+    # p4.kill()
     p5.kill()
     p6.kill()
+    z1.kill()
+    z2.kill()
 
 
