@@ -9,7 +9,6 @@ import time
 
 # define a video capture object
 vid = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-# vid.set(cv2.CAP_PROP_SETTINGS,0.0);
 
 frameCount=0
 frame_upload_rate=150

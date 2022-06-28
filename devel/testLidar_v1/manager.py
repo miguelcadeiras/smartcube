@@ -18,6 +18,76 @@ import subprocess
 #p=subprocess.Popen('python C:/smartcube/devel/testLidar_v1/mainNav.py', shell=True, stdout=subprocess.PIPE)
 
 
+class ExternalProc:
+    procHandler = None
+    t1 = None
+
+    def __init__(self, text, execCommand, procTitle="", newConsole=False, useShell=False):
+        self.tkText = text
+        self.execCommand = execCommand
+        self.procTitle = procTitle
+        self.newConsole = newConsole
+        self.useShell = useShell
+
+    def logOutput(self):
+        while True:
+            try:
+                line = self.procHandler.stdout.readline()
+            except:
+                break
+            if line:
+                self.tkText.addText(line)
+            else:
+                time.sleep(0.010)
+
+    def isRuninng(self):
+        if self.procHandler is not None:
+            if self.procHandler.is_alive():
+                return True
+        return False
+
+    def start(self):
+        if self.isRuninng():
+            print("ALREADY RUNNING")
+            self.tkText.addText("ALREADY RUNNING")
+            return
+
+        print("STARTING " + self.procTitle + " IN CONSOLE")
+        self.tkText.addText("STARTING " + self.procTitle + " IN CONSOLE")
+        # self.tkText.clearText()
+        # self.procHandler = subprocess.Popen('python.exe C:/smartcube/devel/testLidar_v1/mainNav.py', shell=True, creationflags = subprocess.CREATE_NEW_CONSOLE )
+        if self.newConsole==True:
+            newConsoleFlag=subprocess.CREATE_NEW_CONSOLE
+        else:
+            newConsoleFlag=0
+        print ("USE SHELL", self.useShell)
+        self.procHandler = subprocess.Popen(self.execCommand, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=self.useShell, creationflags=newConsoleFlag)
+        # creationflags=subprocess.CREATE_NEW_CONSOLE)
+        self.t1 = th.Thread(target=self.logOutput)
+        self.t1.setDaemon(True)
+        self.t1.start()
+
+    def kill(self):
+
+        import psutil
+        if self.procHandler is None:
+            self.tkText.addText("NO PROCESS WAS RUNNING")
+            print ("NO PROCESS WAS RUNNING")
+            return
+        print("KILLING")
+        parentPid = self.procHandler.pid
+        print(parentPid)
+        parent = psutil.Process(parentPid)
+        for child in parent.children(recursive=True):  # or parent.children() for recursive=False
+            child.kill()
+        parent.kill()
+
+        self.tkText.clearText()
+        self.tkText.addText("PROCESS STOPPED!")
+        # self.procHandler.terminate()
+        self.procHandler = None
+
+
 class camProc:
     procHandler=None
     t1=None
@@ -128,7 +198,7 @@ class navProc:
 
 
 
-class externProc:
+class PythonProc:
 
     procHandler=None
     t1=None
@@ -286,10 +356,6 @@ if __name__ == "__main__":
     frameRight = Frame(root, height= 500)
     frameNav = Frame(frameRight, height=100)
     frameCam = Frame(frameRight, height=100)
-#frame1 = Frame(root, height = 20)
-#frame2 = Frame(root, height = 20)
-#text = Text(frame1, bg="black", fg="white", bd=2, width=100, height=20)
-#text2 = Text(frame2, bg="black", fg="white", bd=2, width=100, height=20)
 
     frameServices.pack(side=LEFT, anchor=NW, padx=(10,10), pady=(10,10))
     frameRight.pack(side=RIGHT, anchor=NE, padx=(10,10), pady=(10,10))
@@ -312,43 +378,47 @@ if __name__ == "__main__":
 
     mainNavFrame = tkProcNav(frameNav)
     mainCamFrame = tkProcCam(frameCam)
-
-    z1= navProc(mainNavFrame)
+    #text, execCommand, procTitle = ""
+    procCmd = 'C:/Users/Usuario/AppData/Local/Programs/Python/Python39/python.exe -u C:/smartcube/devel/testLidar_v1/mainNav.py'
+    z1=ExternalProc(text=mainNavFrame, execCommand=procCmd, procTitle="MAINNAV", newConsole=False)
     mainNavFrame.setStartFunc(z1.start)
     mainNavFrame.setStopFunc(z1.kill)
 
-    z2=camProc(mainCamFrame)
+    procCmd = 'C:/Users/Usuario/AppData/Local/Programs/Python/Python39/python.exe -u C:/smartcube/devel/testLidar_v1/wrapCAm.py'
+    #procCmd = 'python.exe C:/smartcube/devel/testLidar_v1/wrapCAm.py'
+
+    z2=ExternalProc(text=mainCamFrame, execCommand=procCmd, procTitle="WRAPCAM", newConsole=False, useShell=True)
     mainCamFrame.setStartFunc(z2.start)
     mainCamFrame.setStopFunc(z2.kill)
 
-    p1 = externProc(procFrame1, "lidarService", lidarServiceV2.serviceStart)
+    p1 = PythonProc(procFrame1, "lidarService", lidarServiceV2.serviceStart)
     procFrame1.setStartFunc(p1.start)
     procFrame1.setStopFunc(p1.kill)
 
-    p2 = externProc(procFrame2, "lidarMinsService", lidarMinsService.serviceStart)
+    p2 = PythonProc(procFrame2, "lidarMinsService", lidarMinsService.serviceStart)
     procFrame2.setStartFunc(p2.start)
     procFrame2.setStopFunc(p2.kill)
 
     # PARA CONECTAR REALSENSE A LA COMP.. DESCOMENTAR ESTAS LINEAS
 
-    # p3 = externProc(procFrame3, "realsenseService", realsenseService.serviceStart)
+    # p3 = PythonProc(procFrame3, "realsenseService", realsenseService.serviceStart)
     # procFrame3.setStartFunc(p3.start)
     # procFrame3.setStopFunc(p3.kill)
     #
-    # p4 = externProc(procFrame4, "realsenseMinsService", realsenseMinsService.serviceStart)
+    # p4 = PythonProc(procFrame4, "realsenseMinsService", realsenseMinsService.serviceStart)
     # procFrame4.setStartFunc(p4.start)
     # procFrame4.setStopFunc(p4.kill)
 
-    p5=externProc(procFrame5, "pixyService", pixyService.serviceStart)
+    p5=PythonProc(procFrame5, "pixyService", pixyService.serviceStart)
     procFrame5.setStartFunc(p5.start)
     procFrame5.setStopFunc(p5.kill)
 
-    p6=externProc(procFrame6, "joystickService", joystickService.serviceStart)
+    p6=PythonProc(procFrame6, "joystickService", joystickService.serviceStart)
     procFrame6.setStartFunc(p6.start)
     procFrame6.setStopFunc(p6.kill)
 
     # migueCrap
-    # p7 = externProc(procFrame7, "webCamService", wrapCam_proc.serviceStart())
+    # p7 = PythonProc(procFrame7, "webCamService", wrapCam_proc.serviceStart())
     # procFrame7.setStartFunc(p7.start)
     # procFrame7.setStopFunc(p7.kill)
 
