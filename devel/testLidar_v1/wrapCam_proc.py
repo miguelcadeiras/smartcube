@@ -4,11 +4,13 @@ import cv2
 import ftplib
 # import getmac
 import time
+import threading as th
 # print ("1")
 
 webcam_on = True
 # define a video capture object
-vid = cv2.VideoCapture(0,cv2.CAP_DSHOW)
+cameraIndex = 0
+vid = cv2.VideoCapture(cameraIndex,cv2.CAP_DSHOW)
 frameCount=0
 frame_upload_rate=150
 # print ("2")
@@ -35,26 +37,22 @@ def upload_file(img_path):
         # pass
         print("WrapCam.py Something went wrong")
 
-def start(self):
-    webcam_on=True
-    print("Press Start webcam")
-    serviceStart()
-
-def stop(self):
-    webcam_on=False
-
-
-def serviceStart():
+def mainLoop():
+    global webcam_on
     print("starting webcam")
     print( 'webcam_on flag:',webcam_on)
     frameCount = 0
+
     while (webcam_on):
 
         # Capture the video frame
         # by frame
 
         ret, frame = vid.read()
-
+        if ret == False:
+            print("NO CV2 FRAME")
+            time.sleep(0.500)
+            continue
         # Display the resulting frame
         cv2.imshow('frame', frame)
         frameCount +=1
@@ -77,3 +75,29 @@ def serviceStart():
     vid.release()
     # Destroy all the windows
     cv2.destroyAllWindows()
+
+
+
+
+lock = th.Lock()
+t1 = th.Thread(target=mainLoop)
+
+def serviceStart():
+    global webcam_on
+    webcam_on = True
+    print("Press Start webcam")
+    t1.start()
+
+def stop():
+    global webcam_on
+    # lock.acquire()
+    print("Press Stop webcam")
+    webcam_on=False
+
+
+
+
+
+
+
+# serviceStart()

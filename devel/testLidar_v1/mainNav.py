@@ -102,32 +102,33 @@ navigationMode=NAVIGATION_MODE_MANUAL
 #     thReadLidarMin.setDaemon(True)
 #     thReadLidarMin.start()
 
-def realsenseMinClient():
-    address = ('localhost', scsvc.REALSENSE_MINS)
-    tcp_connected = True
-    global realsenseMinsAvailable
-    try:
-        conn = Client(address)
-        realsenseMinsAvailable = True
-    except:
-        print("CANT CONNECT REALSENSE MIN SERVICE 6022")
-        tcp_connected = False
-        realsenseMinsAvailable = False
-        #exit(-1)
-
-    def readRealsenseMin(conn):
-        global realsenseMins
-        global realsenseMinsAvailable
-        while True:
-            if tcp_connected == True:
-                localRealsenseMins = conn.recv()
-                realsenseMins=localRealsenseMins
-                #print(localRealsenseMins)
-        conn.close()
-
-    thReadRealsenseMin = th.Thread(target=readRealsenseMin, args=(conn,))
-    thReadRealsenseMin.setDaemon(True)
-    thReadRealsenseMin.start()
+# def realsenseMinClient():
+#     address = ('localhost', scsvc.REALSENSE_MINS)
+#     tcp_connected = True
+#     global realsenseMinsAvailable
+#     try:
+#         conn = Client(address)
+#         realsenseMinsAvailable = True
+#     except:
+#         print("CANT CONNECT REALSENSE MIN SERVICE 6022")
+#         tcp_connected = False
+#         realsenseMinsAvailable = False
+#         #exit(-1)
+#
+#     def readRealsenseMin(conn):
+#         global realsenseMins
+#         global realsenseMinsAvailable
+#         while True:
+#             if tcp_connected == True:
+#                 localRealsenseMins = conn.recv()
+#                 realsenseMins=localRealsenseMins
+#
+#                 print(localRealsenseMins)
+#         conn.close()
+#
+#     thReadRealsenseMin = th.Thread(target=readRealsenseMin, args=(conn,))
+#     thReadRealsenseMin.setDaemon(True)
+#     thReadRealsenseMin.start()
 
     #thReadRealsenseMin.join()
 
@@ -155,6 +156,9 @@ class ServiceClient:
                 break
         self.available = False
 
+    def sendData(self, data):
+        self.conn.send(data)
+
     def __init__(self, serveraddress, port):
         self.connThread=None
         self.conn=None
@@ -172,13 +176,14 @@ class RealsenseMinsClient(ServiceClient):
         global realsenseMins
         localRealsenseMins = self.conn.recv()
         realsenseMins = localRealsenseMins
-
+        #print(localRealsenseMins)
 
 class LidarMinClient(ServiceClient):
     def dataUpdate(self):
         global lidarMins
         localLidarMins = self.conn.recv()
         lidarMins = localLidarMins
+
 
 
 class JoystickClient(ServiceClient):
@@ -360,19 +365,19 @@ class RealsenseDrive:
     errorPrev=0
     integral=0
     pid=0
-    pGain = 2.0
-    iGain = 0.1
-    dGain = 0.4
+    pGain = 2.0 # ORIGINAL 2.0
+    iGain = 0.01 # ORIGINAL 0.1
+    dGain = 1.0 # ORIGINAL 0.4
     realSenseDetectedTimer=0
     speedRight=0.0
     speedLeft=0.0
     MAX_SPEED = 100
-    LOW_SPEED = 50
+    LOW_SPEED = 85
     barDetected=False
     def update(self, rsData):
         err = rsData[0]  # ACA VA EL DATO QUE VIENE DE REALSENSE
         self.errorPrev = self.error
-        self.error = err / 10
+        self.error = err / 10  # err /10
 
         #self.barDetected = True
 
@@ -402,7 +407,7 @@ class RealsenseDrive:
         i = (self.integral * self.iGain)
         d = (self.error - self.errorPrev) * self.dGain
         self.pid = p + i + d
-
+        #print ("E P I D PID", err, p, i, d , self.pid)
         # VELOCIDAD DEFAULT
         self.speedLeft = self.MAX_SPEED
         self.speedRight = self.MAX_SPEED
@@ -607,7 +612,7 @@ class VirtualSerialHandler:
 
         self.Serial.println("e        | RETURNS ENCODER POSITION SINCE RESET")
         self.Serial.println("E        | RETURNS MOTORS POSITION SINCE RESET")
-        self.Serial.println("v,b      | VERVOSE MODE,VERBOSE DRIVE MODE ")
+        self.Serial.println("v,b      | VERBOSE MODE,VERBOSE DRIVE MODE ")
         self.Serial.println("x        | READ BATTERIES VOLTAG (24v & 36v)")
 
         self.Serial.println("7,8,9  |aTurn, bturn,cTurn right")
@@ -731,6 +736,13 @@ class VirtualSerialHandler:
 
         if "sp" in cmd:
             motion.setNavSpeed(cmd['sp'])
+        if "rsdist" in cmd:
+            try:
+                print ("RSDIST", cmd['rsdist'])
+                rsMinsClient.sendData(cmd['rsdist'])
+            except:
+                print ("ERROR SENDING RSDIST", cmd['rsdist'])
+
         if "gofw" in cmd:
             cmddrive.addQueueGoForward(cmd['gofw'])
             navigationMode = NAVIGATION_MODE_CMD
@@ -977,7 +989,8 @@ while True:
         motion.setWheelsSpeedAbsolute(cmd_spRight, cmd_spLeft)
 
     elif navigationMode == NAVIGATION_MODE_PIXY:
-        print ("PIXY ONLY DRIVE", "PID ERROR:", pixydrive.error)
+        if not lidarPause:
+            print ("PIXY ONLY DRIVE", "PID ERROR:", pixydrive.error)
         manualdrive.stop()
         motion.setWheelSpeedPercentage(pixy_spRight, pixy_spLeft)
         if pixydrive.noVector==True:
@@ -990,9 +1003,11 @@ while True:
         manualdrive.stop()
         motion.setWheelSpeedPercentage(realsense_spRight, realsense_spLeft)
         if realsenseDrive.barDetected == True:
-            print ("RS DRIVE:", "BAR DETECTED:", realsenseDrive.barDetected, "MINS:", realsenseMins, "PID ERR:", realsenseDrive.error)
+            if not lidarPause:
+                print ("RS DRIVE:", "BAR DETECTED:", realsenseDrive.barDetected, "MINS:", realsenseMins, "PID ERR:", realsenseDrive.error)
         elif pixydrive.noVector == False:
-            print("RS DRIVE: NO BAR - USING PIXY")
+            if not lidarPause:
+                print("RS DRIVE: NO BAR - USING PIXY")
             motion.setWheelSpeedPercentage(pixy_spRight, pixy_spLeft)
         else:
             megaBeep(250, 1)
@@ -1019,6 +1034,7 @@ while True:
                         vser.sendMsg("ex", "upause")
                     lidarPause=True
                     motion.setWheelsSpeedAbsolute(0, 0)
+                    motion.updateMotors()
                     encData.resetTimer()
                     lidarPauseTime=millis()
 
