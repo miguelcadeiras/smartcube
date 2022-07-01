@@ -641,22 +641,28 @@ class VirtualSerialHandler:
                     self.Serial.print('b')
                 elif ch=='f': #move forward fast
                     self.Serial.println("moving FastForward")
+                    print("F - MOVING FAST FORWARD")
                     navigationMode = NAVIGATION_MODE_MANUAL
                     manualdrive.fastForward()
                 elif ch=='w': #move forward
                     self.Serial.println("moving Forward")
+                    print("W - MOVING FORWARD")
                     navigationMode = NAVIGATION_MODE_MANUAL
                     manualdrive.forward()
                 elif ch=='s': # move backwards
                     self.Serial.println("moving Backwards")
+                    print('S - MOVING BACKWARDS')
                     navigationMode = NAVIGATION_MODE_MANUAL
                     manualdrive.backwards()
                 elif ch=='a': # turnleft90
                     self.Serial.println("Turning Left")
+                    print('A - Turning Left')
                     navigationMode = NAVIGATION_MODE_MANUAL
                     manualdrive.turnLeft90()
                 elif ch=='d': # turnoright90
+
                     self.Serial.println("Turning Right")
+                    print('D - Turning Right')
                     navigationMode = NAVIGATION_MODE_MANUAL
                     manualdrive.turnRight90()
                 elif ch=='z': # turnleft90_inplace
@@ -729,26 +735,45 @@ class VirtualSerialHandler:
         global navigationMode
         try:
             cmd = json.loads(cmdString)
+            print("cmdString: ",cmdString,type(cmdString)) # {"rsdist": 850}
         except Exception as e:
-            print ("PARSELINE - ERROR PARSING:", cmdString)
+            print ("PARSELINE - ERROR PARSING - SERIAL INPUT:", cmdString)
             print (e)
             return
 
+
+
         if "sp" in cmd:
             motion.setNavSpeed(cmd['sp'])
-        if "rsdist" in cmd:
+
+            print("SPEED - SP:",cmd['sp'])
+            self.Serial.println("SPEED - SP:"+str(cmd['sp']))
+        elif "rsdist" in cmd:
             try:
-                print ("RSDIST", cmd['rsdist'])
+                print ("RSDIST: ", cmd['rsdist'])
                 rsMinsClient.sendData(cmd['rsdist'])
+                self.Serial.println("RSDIST: "+str(cmd['rsdist']))
+
             except:
                 print ("ERROR SENDING RSDIST", cmd['rsdist'])
+                self.Serial.println("ERROR SENDING RDIST :"+str(cmd['rsdist']))
 
-        if "gofw" in cmd:
+        elif "gofw" in cmd:
             cmddrive.addQueueGoForward(cmd['gofw'])
             navigationMode = NAVIGATION_MODE_CMD
-        if "turn" in cmd:
+            print("gofw: "+str(cmd['gofw']))
+            self.Serial.println("gofw: " + str(cmd['gofw']))
+
+        elif "turn" in cmd:
             cmddrive.addQueueTurn(cmd['turn'])
             navigationMode = NAVIGATION_MODE_CMD
+            print("turn: " + str(cmd['turn']))
+            self.Serial.println("turn: " + str(cmd['turn']))
+        else:
+            self.Serial.println('COMMAND NOT IDENTIFIED:'+cmdString)
+            print('COMMAND NOT IDENTIFIED: '+cmdString)
+
+
     def sendMsg(self, type, details):
         msgStr="{" + str(type) + ";" + str(details) +";}"
         self.Serial.println (msgStr)
