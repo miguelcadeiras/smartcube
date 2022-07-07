@@ -145,6 +145,16 @@ class ServiceClient:
     def dataUpdate(self):
         raise NotImplementedError
 
+    def checkDataUpdate(self):
+        t=self.lastDataUpdateTime
+        if t==-1:
+            return 1
+
+        if (time.time() - t) > self.dataUpdateTimeout:
+            return 1
+
+        return 0
+
     def connWorker(self):
         while True:
             if self.available == True:
@@ -165,6 +175,8 @@ class ServiceClient:
         self.available=False
         self.serveraddress=serveraddress
         self.port=port
+        self.lastDataUpdateTime=-1
+        self.dataUpdateTimeout = 1
 
         self.connect()
         self.connThread=th.Thread(target=self.connWorker)
@@ -176,26 +188,28 @@ class RealsenseMinsClient(ServiceClient):
         global realsenseMins
         localRealsenseMins = self.conn.recv()
         realsenseMins = localRealsenseMins
-        #print(localRealsenseMins)
+        self.lastDataUpdateTime = time.time()
+
 
 class LidarMinClient(ServiceClient):
     def dataUpdate(self):
         global lidarMins
         localLidarMins = self.conn.recv()
         lidarMins = localLidarMins
-
+        self.lastDataUpdateTime = time.time()
 
 
 class JoystickClient(ServiceClient):
     def dataUpdate(self):
         global joyData
         joyData = self.conn.recv()
-
+        self.lastDataUpdateTime = time.time()
 
 class PixyClient(ServiceClient):
     def dataUpdate(self):
         global pixyData
         pixyData = self.conn.recv()
+        self.lastDataUpdateTime = time.time()
 
 arduino_mega = serial.Serial(port='COM4', baudrate=115200)
 time.sleep(2)
@@ -563,6 +577,93 @@ class PixyDrive:
         return self.speedRight, self.speedLeft
 
 
+class PixyDriveTEST:
+    lastVectorTime=0
+    errorPrev=0
+    error=0
+    integral=0
+    pid=0
+    pGain = 2.0 #PID_P_GAIN; 2.5
+    iGain = 0.1 #PID_I_GAIN; 0.1
+    dGain = 0.4 #PID_D_GAIN; 0.7
+
+    MAX_SPEED=120 #0.32
+    MIN_SPEED=0
+    LOW_SPEED=40 #ORIGINAL 40 #0.16
+
+    speedLeft=0
+    speedRight=0
+
+    noLineTimeout=2000
+    noVector=False
+
+    maxSpeedTimer=0
+
+    def update(self, pixyData):
+        pixyWidth=79
+        pixyHeight=52
+
+        if pixyData['v'] > 0:
+            self.speedLeft = 0
+            self.speedRight = 0
+
+            self.noVector=False
+            self.lastVectorTime=millis()
+            self.errorPrev=self.error
+
+            # POR SI EL VECTOR ESTA INVERTIDO
+            vectX = pixyData['x1']
+            if pixyData['y1'] > pixyData['y0']:
+                vectX = pixyData['x0']
+
+            self.error = vectX - (pixyWidth / 2) - 1
+
+            # INTEGRADOR
+            self.integral += self.error
+
+            if (self.integral > 100):
+                self.integral = 100
+            if (self.integral < -100):
+                self.integral = -100
+
+            p = (self.error * self.pGain)
+            i = (self.integral * self.iGain)
+            d = (self.error - self.errorPrev) * self.dGain
+            self.pid = p + i + d
+
+            #print (self.pid)
+
+            # DESDE ACA -------------------
+
+            # VELOCIDAD DEFAULT 100 %
+            #if (millis() - self.maxSpeedTimer > 500):
+            #print ("PID:", self.pid)
+            self.speedRight = 100 - self.pid
+            self.speedLeft = 100 + self.pid
+
+            #if (self.pid > 0):
+            #    self.speedRight = self.speedRight - abs(self.pid);
+            #    self.speedLeft
+            #elif (self.pid < 0):
+            #    self.speedLeft = self.speedLeft - abs(self.pid);
+
+            if (self.speedLeft > self.MAX_SPEED):
+                self.speedLeft=self.MAX_SPEED
+            if (self.speedRight > self.MAX_SPEED):
+                self.speedRight=self.MAX_SPEED
+            if (self.speedLeft < 0):
+                self.speedLeft = 0
+            if (self.speedRight < 0):
+                self.speedRight = 0
+        else:
+            if millis()-self.lastVectorTime > self.noLineTimeout:
+                self.noVector = True
+                self.speedLeft = 0
+                self.speedRight = 0
+        #print ("R-L",self.speedRight, self.speedLeft)
+        return self.speedRight, self.speedLeft
+
+
 class ArduSerial(serial.Serial):
     comport=None
     ser=None
@@ -571,7 +672,7 @@ class ArduSerial(serial.Serial):
         self.comport=comport
 
     def begin(self, baudrate):
-        serial.Serial.__init__ (self, port=self.comport, baudrate=baudrate)
+        serial.Serial.__init__ (self, port=self.comport, baudrate=baudrate, rtscts=False, dsrdtr=False)
 
     def print (self, str):
         self.write(str.encode('utf-8'))
@@ -579,6 +680,7 @@ class ArduSerial(serial.Serial):
     def println(self, str):
         str+='\r\n'
         self.write(str.encode('utf-8'))
+        print ("TO VIRT SERIAL:", str, end="")
 
     def available(self):
         return self.in_waiting
@@ -602,7 +704,7 @@ class VirtualSerialHandler:
         self.Serial.println("r        | REALSENSE")
 
         self.Serial.println("t        | Z AXIS INFO")
-        self.Serial.println("u        | Z AXIS INFO")
+        self.Serial.println("u        | Z AXIS INFO") # este estaria duplicado?? o es distinta la info?
         self.Serial.println("i,o      | PRINT STATUS INFO, PRINT SPEED ")
 
         self.Serial.println("m,n      | INCREASE,DECREASE Default Speed")
@@ -735,7 +837,7 @@ class VirtualSerialHandler:
         global navigationMode
         try:
             cmd = json.loads(cmdString)
-            print("cmdString: ",cmdString,type(cmdString)) # {"rsdist": 850}
+            print("cmdString: ",cmdString,type(cmd)) # {"rsdist": 850}
         except Exception as e:
             print ("PARSELINE - ERROR PARSING - SERIAL INPUT:", cmdString)
             print (e)
@@ -957,7 +1059,7 @@ class Motion:
 print ("SETTING DRIVE MODES ")
 
 
-pixydrive = PixyDrive()
+pixydrive = PixyDriveTEST()
 manualdrive = ManualDrive()
 realsenseDrive = RealsenseDrive()
 cmddrive = CmdDrive()
@@ -982,7 +1084,15 @@ lidarPauseTime=0
 
 lidarEnabled=True
 
+startTime=time.time();
+
 while True:
+    if lidarMinClient.checkDataUpdate():
+        print ("NO LIDAR MIN SERVICE")
+        break
+    if pixyClient.checkDataUpdate():
+        print ("NO PIXY SERVICE")
+        break
 
     #print ("ACCZ:", str(motionData['accZ']), "START:", cmddrive.startAngle, "DST:", cmddrive.dstAngle, "SET:", cmddrive.setAngle)
     vser.update()
@@ -1085,7 +1195,7 @@ while True:
         manualdrive.stop()
 
 
-
+    #time.sleep(0.5)
     time.sleep(0.025)
 
 

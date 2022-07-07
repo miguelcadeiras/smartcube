@@ -14,6 +14,8 @@ vid = cv2.VideoCapture(cameraIndex,cv2.CAP_DSHOW)
 frameCount=0
 frame_upload_rate=150
 # print ("2")
+
+
 def make_320p(cap):
     cap.set(3, 320)
     cap.set(4, 240)

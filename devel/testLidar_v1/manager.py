@@ -4,7 +4,7 @@ from tkinter.scrolledtext import *
 import multiprocessing
 import joystickService
 import lidarServiceV2
-import lidarMinsService,wrapCam_proc,lidarClientGraphPyGame_proc,realsenseClientColor_proc
+import lidarMinsService,lidarClientGraphPyGame_proc
 import realsenseService
 import realsenseMinsService
 import pixyService
@@ -401,8 +401,8 @@ if __name__ == "__main__":
 
 
     mainNavFrame = tkProcNav(frameNav)
-    # mainCamFrame = tkProcCam(frameCam)
-    mainCamFrame = Frame(root, relief="raised", height=20, width=150, border=2)
+    mainCamFrame = tkProcCam(frameCam)
+    #mainCamFrame = Frame(root, relief="raised", height=20, width=150, border=2)
     #text, execCommand, procTitle = ""
     procCmd = 'C:/Users/Usuario/AppData/Local/Programs/Python/Python39/python.exe -u C:/smartcube/devel/testLidar_v1/mainNav.py'
     z1=ExternalProc(text=mainNavFrame, execCommand=procCmd, procTitle="MAINNAV", newConsole=False)
@@ -412,9 +412,9 @@ if __name__ == "__main__":
     procCmd = 'C:/Users/Usuario/AppData/Local/Programs/Python/Python39/python.exe -u C:/smartcube/devel/testLidar_v1/wrapCAm.py'
     # procCmd = 'C:\smartcube\devel\testLidar_v1\venv\Scripts\python.exe C:/smartcube/devel/testLidar_v1/manager.py'
 
-    # z2=ExternalProc(text=mainCamFrame, execCommand=procCmd, procTitle="WRAPCAM", newConsole=False, useShell=True)
-    # mainCamFrame.setStartFunc(z2.start)
-    # mainCamFrame.setStopFunc(z2.kill)
+    z2=ExternalProc(text=mainCamFrame, execCommand=procCmd, procTitle="WRAPCAM", newConsole=False, useShell=True)
+    mainCamFrame.setStartFunc(z2.start)
+    mainCamFrame.setStopFunc(z2.kill)
 
     p1 = PythonProc(procFrame1, "lidarService", lidarServiceV2.serviceStart)
     procFrame1.setStartFunc(p1.start)
@@ -447,20 +447,26 @@ if __name__ == "__main__":
     # procFrame7.setStartFunc(p7.start)
     # procFrame7.setStopFunc(p7.kill)
 
-    singleFrame1 = tkProcFrame(frameCam, "Webcam")
-    pWrapCam = PythonProc(singleFrame1, "Webcam", wrapCam_proc.serviceStart, noLog=True)
-    singleFrame1.setStartFunc(pWrapCam.start)
-    singleFrame1.setStopFunc(pWrapCam.kill)
+    #singleFrame1 = tkProcFrame(frameCam, "Webcam")
+    #pWrapCam = PythonProc(singleFrame1, "Webcam", wrapCam_proc.serviceStart, noLog=True)
+    #singleFrame1.setStartFunc(pWrapCam.start)
+    #singleFrame1.setStopFunc(pWrapCam.kill)
+
 
     singleFrame2 = tkProcFrame(frameCam, "Lidar Graph")
     pLidarGraph = PythonProc(singleFrame2, "Lidar Graph", lidarClientGraphPyGame_proc.serviceStart, noLog=True)
     singleFrame2.setStartFunc(pLidarGraph.start)
     singleFrame2.setStopFunc(pLidarGraph.kill)
 
-    singleFrame3 = tkProcFrame(frameCam, "RealSense Color")
-    pRealsenseColor = PythonProc(singleFrame3, "RealSense Color", realsenseClientColor_proc.serviceStart, noLog=True)
-    singleFrame3.setStartFunc(pRealsenseColor.start)
-    singleFrame3.setStopFunc(pRealsenseColor.kill)
+    frameRealSenseColor = tkProcCam(frameCam)
+    procCmd = 'C:/Users/Usuario/AppData/Local/Programs/Python/Python39/python.exe -u C:/smartcube/devel/testLidar_v1/realsesneClientColor.py'
+    pRealsenseColor=ExternalProc(text=frameRealSenseColor, execCommand=procCmd, procTitle="REALSENSE COLOR", newConsole=False, useShell=True)
+    frameRealSenseColor.setStartFunc(pRealsenseColor.start)
+    frameRealSenseColor.setStopFunc(pRealsenseColor.kill)
+
+
+
+
 
     #singleFrame4 = tkSingleFrame(frameCam, "RealSense Depth")
     # singleFrame4.setStartFunc(realsenseClientDepth)
@@ -477,7 +483,7 @@ if __name__ == "__main__":
         #p4.start()
         p5.start()
         p6.start()
-        wrapCam_proc.serviceStart
+        #wrapCam_proc.serviceStart
         # z2.start(
 
         # SERVICIOS CON DEPENDENCIA

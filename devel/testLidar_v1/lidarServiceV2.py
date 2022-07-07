@@ -11,6 +11,8 @@ COM_PORT = "COM14"
 class dataColector:
     data = None
     lock = None
+    lastDataUpdateTime = 0
+    dataUpdateTimeout = 5
     thDataColector = None
 
     def checksum(self, data):
@@ -110,8 +112,10 @@ class dataColector:
                     if DEBUG:
                         local_counter+=1
                         logdata.log (local_counter, speed_rpm)
+                    self.lastDataUpdateTime=time.time();
                 if (self.exit == True):
                     break
+
         except Exception as e:
             logdata.log(e)
             logdata.log("ERROR: DataCollector Loop")
@@ -119,6 +123,11 @@ class dataColector:
         logdata.log("Stopping DataCollector")
 
     def getData(self):
+        t=self.lastDataUpdateTime
+        if (time.time()-t) > self.dataUpdateTimeout:
+            logdata.log("DataCollector Timed out waiting for data")
+            self.exit = True
+
         with self.lock:
             return (self.data)
 
@@ -160,6 +169,7 @@ def serviceStart(pipeOut=None, pipeIn=None, setDebug=False):
                 dcrunning = True
             else:
                 dcrunning = False
+            #time.sleep(0.001)
             time.sleep(0.1)
         except KeyboardInterrupt:
             logdata.log("EXIT-3")
