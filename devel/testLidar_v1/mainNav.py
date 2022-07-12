@@ -25,112 +25,10 @@ NAVIGATION_MODE_REALSENSE=2
 NAVIGATION_MODE_JOYSTICK=3
 NAVIGATION_MODE_CMD=4
 
+navigationModeNames = ("MANUAL", "PIXY", "REALSENSE", "JOYSTICK", "COMMAND")
+
 navigationMode=NAVIGATION_MODE_MANUAL
 
-
-
-# def pixyClient():
-#     address = ('localhost', scsvc.PIXY_RAW)
-#     tcp_connected = True
-#
-#
-#     try:
-#         conn = Client(address)
-#     except:
-#         print("CANT CONNECT PIXY SERVICE", scsvc.PIXY_RAW )
-#         tcp_connected = False
-#         exit(-1)
-#
-#     def readData(conn):
-#         global pixyData
-#         while True:
-#             if tcp_connected == True:
-#                 pixyData = conn.recv()
-#             else:
-#                 pixyData={'x0':-1,'y0':-1,'x1':-1,'y1':-1,'v':0, 'i':0}
-#         conn.close()
-#     thReadLidarMin = th.Thread(target=readData, args=(conn,))
-#     thReadLidarMin.setDaemon(True)
-#     thReadLidarMin.start()
-
-# def joystickClient():
-#     address = ('localhost', scsvc.JOYSTICK_RAW)
-#     tcp_connected = True
-#
-#     try:
-#         conn = Client(address)
-#     except:
-#         print("CANT CONNECT JOYSTICK SERVICE", scsvc.JOYSTICK_RAW )
-#         tcp_connected = False
-#         exit(-1)
-#
-#     def readData(conn):
-#         global joyData
-#         while True:
-#             if tcp_connected == True:
-#                 joyData = conn.recv()
-#                 #print (joyData)
-#             else:
-#                 joyData=[0.0, 0.0, 0.0, 0.0]
-#
-#         conn.close()
-#     thReadLidarMin = th.Thread(target=readData, args=(conn,))
-#     thReadLidarMin.setDaemon(True)
-#     thReadLidarMin.start()
-
-# def lidarMinClient():
-#     address = ('localhost', scsvc.LIDAR_MINS)
-#     tcp_connected = True
-#
-#     try:
-#         conn = Client(address)
-#
-#     except:
-#         print("CANT CONNECT LIDAR MIN SERVICE 6001")
-#         tcp_connected = False
-#         exit(-1)
-#
-#     def readLidarMin(conn):
-#         global lidarMins
-#         while True:
-#             if tcp_connected == True:
-#                 localLidarMins = conn.recv()
-#                 lidarMins=localLidarMins
-#                 #print(localLidarMins)
-#         conn.close()
-#     thReadLidarMin = th.Thread(target=readLidarMin, args=(conn,))
-#     thReadLidarMin.setDaemon(True)
-#     thReadLidarMin.start()
-
-# def realsenseMinClient():
-#     address = ('localhost', scsvc.REALSENSE_MINS)
-#     tcp_connected = True
-#     global realsenseMinsAvailable
-#     try:
-#         conn = Client(address)
-#         realsenseMinsAvailable = True
-#     except:
-#         print("CANT CONNECT REALSENSE MIN SERVICE 6022")
-#         tcp_connected = False
-#         realsenseMinsAvailable = False
-#         #exit(-1)
-#
-#     def readRealsenseMin(conn):
-#         global realsenseMins
-#         global realsenseMinsAvailable
-#         while True:
-#             if tcp_connected == True:
-#                 localRealsenseMins = conn.recv()
-#                 realsenseMins=localRealsenseMins
-#
-#                 print(localRealsenseMins)
-#         conn.close()
-#
-#     thReadRealsenseMin = th.Thread(target=readRealsenseMin, args=(conn,))
-#     thReadRealsenseMin.setDaemon(True)
-#     thReadRealsenseMin.start()
-
-    #thReadRealsenseMin.join()
 
 class ServiceClient:
     def connect(self):
@@ -148,11 +46,14 @@ class ServiceClient:
     def checkDataUpdate(self):
         t=self.lastDataUpdateTime
         if t==-1:
+            self.running=False
             return 1
 
         if (time.time() - t) > self.dataUpdateTimeout:
+            self.running = False
             return 1
 
+        self.running=True
         return 0
 
     def connWorker(self):
@@ -177,6 +78,7 @@ class ServiceClient:
         self.port=port
         self.lastDataUpdateTime=-1
         self.dataUpdateTimeout = 1
+        self.running=False
 
         self.connect()
         self.connThread=th.Thread(target=self.connWorker)
@@ -211,18 +113,20 @@ class PixyClient(ServiceClient):
         pixyData = self.conn.recv()
         self.lastDataUpdateTime = time.time()
 
+
+print ("STARTING MAINNAV")
+print ("")
+
+print ("CONNECTING ARDUINO MEGA ON COM4  ", sep='')
 arduino_mega = serial.Serial(port='COM4', baudrate=115200)
 time.sleep(2)
-#arduino_mega.reset_input_buffer()
-
+print ("[OK]")
 
 def megaReceive():
     import json
     global motionData
     while True:
         data = arduino_mega.readline()
-        #print (data)
-        #print (data[0])
         jsonData={}
         try:
             jsonData = json.loads(data.decode(errors="ignore"))
@@ -249,9 +153,8 @@ thMegaReceive = th.Thread(target=megaReceive)
 thMegaReceive.setDaemon(True)
 thMegaReceive.start()
 
-print ("STARTING ")
-
-#realsenseMinClient()
+print("")
+print ("STARTING CLIENTS")
 rsMinsClient=RealsenseMinsClient(scsvc.REALSENSE_MINS_SERVER, scsvc.REALSENSE_MINS)
 print("REALSENSE MINS:", rsMinsClient.available)
 lidarMinClient=LidarMinClient(scsvc.LIDAR_MINS_SERVER, scsvc.LIDAR_MINS)
@@ -260,10 +163,6 @@ joystickClient=JoystickClient(scsvc.JOYSTICK_RAW_SERVER, scsvc.JOYSTICK_RAW)
 print("JOYSTICK:", joystickClient.available)
 pixyClient=PixyClient(scsvc.PIXY_RAW_SERVER, scsvc.PIXY_RAW)
 print("PIXY:", pixyClient.available)
-
-#joystickClient()
-#pixyClient()
-
 print ("CLIENTS STARTED")
 
 
@@ -680,10 +579,34 @@ class ArduSerial(serial.Serial):
     def println(self, str):
         str+='\r\n'
         self.write(str.encode('utf-8'))
-        print ("TO VIRT SERIAL:", str, end="")
+        #print ("TO VIRT SERIAL:", str, end="")
 
     def available(self):
         return self.in_waiting
+
+class MainNavStatus:
+    statusData={}
+    servicesStatus={}
+    def __init__(self):
+        pass
+    def updateData(self):
+        self.servicesStatus.update({"lidarMins": lidarMinClient.running})
+        self.servicesStatus.update({"realsenseMins": rsMinsClient.running})
+        self.servicesStatus.update({"pixy": pixyClient.running})
+        self.servicesStatus.update({"joystick": joystickClient.running})
+
+        self.statusData.update({"emergencyStop": motion.emergencyStop})
+        self.statusData.update({"services": self.servicesStatus})
+        self.statusData.update({"lidarEnabled": lidarEnabled})
+        self.statusData.update({"lidarPause": lidarPause})
+        self.statusData.update({"navigationMode": navigationModeNames[navigationMode]})
+        self.statusData.update({"setSpeed": motion.spMax})
+        self.statusData.update({"encoderSpeed": encData.speed})
+        self.statusData.update({"motionData": motionData})
+
+    def getData(self):
+        jsonData=json.dumps(self.statusData, indent=None)
+        return jsonData
 
 
 class VirtualSerialHandler:
@@ -703,6 +626,7 @@ class VirtualSerialHandler:
         self.Serial.println("p        | FOLLOW LINE")
         self.Serial.println("r        | REALSENSE")
 
+        self.Serial.println("h        | MAIN NAV STATUS")
         self.Serial.println("t        | Z AXIS INFO")
         self.Serial.println("u        | Z AXIS INFO") # este estaria duplicado?? o es distinta la info?
         self.Serial.println("i,o      | PRINT STATUS INFO, PRINT SPEED ")
@@ -786,6 +710,8 @@ class VirtualSerialHandler:
                     navigationMode = NAVIGATION_MODE_MANUAL
                     manualdrive.stop()
                     motion.emergencyStop=False
+                elif ch=='h': # MAIN NAV STATUS
+                    self.Serial.println(mainNavStatus.getData())
                 elif ch=='p': # pixy drive
                     self.Serial.println("Pixy Drive Activated...")
                     navigationMode = NAVIGATION_MODE_PIXY
@@ -1057,8 +983,6 @@ class Motion:
         megaWrite(self.spRight, self.spLeft)
 
 print ("SETTING DRIVE MODES ")
-
-
 pixydrive = PixyDriveTEST()
 manualdrive = ManualDrive()
 realsenseDrive = RealsenseDrive()
@@ -1073,9 +997,10 @@ print ("ENCODER")
 encData=EncoderData()
 motion = Motion()
 
-print ("Waiting 5 seconds")
-time.sleep(5)
-print ("READY to Drive!")
+print ("MAINNAVSTATUS")
+mainNavStatus=MainNavStatus()
+
+
 
 
 
@@ -1084,15 +1009,19 @@ lidarPauseTime=0
 
 lidarEnabled=True
 
+
+print ("Waiting 5 seconds")
+time.sleep(5)
+print ("READY to Drive!")
+
 startTime=time.time();
 
 while True:
-    if lidarMinClient.checkDataUpdate():
-        print ("NO LIDAR MIN SERVICE")
-        break
-    if pixyClient.checkDataUpdate():
-        print ("NO PIXY SERVICE")
-        break
+    mainNavStatus.updateData()
+    joystickClient.checkDataUpdate()
+    rsMinsClient.checkDataUpdate()
+    lidarMinClient.checkDataUpdate()
+    pixyClient.checkDataUpdate()
 
     #print ("ACCZ:", str(motionData['accZ']), "START:", cmddrive.startAngle, "DST:", cmddrive.dstAngle, "SET:", cmddrive.setAngle)
     vser.update()
@@ -1136,7 +1065,10 @@ while True:
 
     elif navigationMode == NAVIGATION_MODE_REALSENSE:
         manualdrive.stop()
-        motion.setWheelSpeedPercentage(realsense_spRight, realsense_spLeft)
+        # PASAR A REALSENSE CUAND ESTAN LOS DOS MINS ACTIVOS PERO NO SALIR DE REALSENSE SI SE PIERDE EL DE ATRAS
+        #motion.setWheelSpeedPercentage(realsense_spRight, realsense_spLeft)
+        #OJO QUE ESTA PARA LA BARRA DEL OTRO LADO!!!
+        motion.setWheelSpeedPercentage(realsense_spLeft, realsense_spRight)
         if realsenseDrive.barDetected == True:
             if not lidarPause:
                 print ("RS DRIVE:", "BAR DETECTED:", realsenseDrive.barDetected, "MINS:", realsenseMins, "PID ERR:", realsenseDrive.error)
@@ -1198,4 +1130,8 @@ while True:
     #time.sleep(0.5)
     time.sleep(0.025)
 
-
+print ("CRITICAL ERROR.. NAVIGATION STOPPED.. CHECK SERVICES")
+vser.sendMsg("ex", "criticalerror")
+while (True):
+    pass
+    time.sleep(0.5)

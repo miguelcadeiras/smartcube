@@ -78,13 +78,19 @@ class ExternalProc:
         print("KILLING")
         parentPid = self.procHandler.pid
         print(parentPid)
-        parent = psutil.Process(parentPid)
-        for child in parent.children(recursive=True):  # or parent.children() for recursive=False
-            child.kill()
-        parent.kill()
+        try:
+            parent = psutil.Process(parentPid)
+            print("PARENT", parent)
+            for child in parent.children(recursive=True):  # or parent.children() for recursive=False
+                child.kill()
+            parent.kill()
+            self.tkText.clearText()
+            self.tkText.addText("PROCESS STOPPED!")
 
-        self.tkText.clearText()
-        self.tkText.addText("PROCESS STOPPED!")
+        except:
+            self.tkText.addText("NO PROCESS FOUND WITH PID: " + str(parentPid))
+            print("NO PROCESS FOUND WITH PID: " + str(parentPid))
+
         # self.procHandler.terminate()
         self.procHandler = None
 
@@ -252,7 +258,7 @@ class tkProcFrame:
         self.label=Label(self.frame, text = self.serviceName)
         self.btnStart = Button(self.frame, text="START")
         self.btnStop = Button(self.frame, text="STOP")
-        self.frame.pack(pady=4)
+        self.frame.pack(pady=4, padx=4)
         self.label.pack()
         self.btnStart.pack(padx=5, side=LEFT)
         self.btnStop.pack(padx=5, side=LEFT)
@@ -458,12 +464,18 @@ if __name__ == "__main__":
     singleFrame2.setStartFunc(pLidarGraph.start)
     singleFrame2.setStopFunc(pLidarGraph.kill)
 
-    frameRealSenseColor = tkProcCam(frameCam)
-    procCmd = 'C:/Users/Usuario/AppData/Local/Programs/Python/Python39/python.exe -u C:/smartcube/devel/testLidar_v1/realsesneClientColor.py'
+    frameRealSenseColor = tkProcFrame(frameCam, "Realsense Color")
+    procCmd = 'C:/Users/Usuario/AppData/Local/Programs/Python/Python39/python.exe -u C:/smartcube/devel/testLidar_v1/realsenseClientColor.py'
     pRealsenseColor=ExternalProc(text=frameRealSenseColor, execCommand=procCmd, procTitle="REALSENSE COLOR", newConsole=False, useShell=True)
     frameRealSenseColor.setStartFunc(pRealsenseColor.start)
     frameRealSenseColor.setStopFunc(pRealsenseColor.kill)
 
+
+    frameRealSenseDepth = tkProcFrame(frameCam, "Realsense Depth")
+    procCmd = 'C:/Users/Usuario/AppData/Local/Programs/Python/Python39/python.exe -u C:/smartcube/devel/testLidar_v1/realsenseClientDepth.py'
+    pRealsenseDepth=ExternalProc(text=frameRealSenseDepth, execCommand=procCmd, procTitle="REALSENSE DEPTH", newConsole=False, useShell=True)
+    frameRealSenseDepth.setStartFunc(pRealsenseDepth.start)
+    frameRealSenseDepth.setStopFunc(pRealsenseDepth.kill)
 
 
 

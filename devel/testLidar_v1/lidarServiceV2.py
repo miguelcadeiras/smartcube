@@ -12,7 +12,7 @@ class dataColector:
     data = None
     lock = None
     lastDataUpdateTime = 0
-    dataUpdateTimeout = 5
+    dataUpdateTimeout = 10
     thDataColector = None
 
     def checksum(self, data):
@@ -85,6 +85,8 @@ class dataColector:
                 # Speed in revolutions per minute
                 speed_rpm = (data[1] << 8 | data[0]) / 64.0
 
+                self.lastDataUpdateTime = time.time();
+
                 # A packet contains 4 distance/reliance readings
                 for i in range(4):
                     byte_ndx = 4 * i + 2
@@ -112,7 +114,7 @@ class dataColector:
                     if DEBUG:
                         local_counter+=1
                         logdata.log (local_counter, speed_rpm)
-                    self.lastDataUpdateTime=time.time();
+
                 if (self.exit == True):
                     break
 
@@ -126,6 +128,7 @@ class dataColector:
         t=self.lastDataUpdateTime
         if (time.time()-t) > self.dataUpdateTimeout:
             logdata.log("DataCollector Timed out waiting for data")
+            logdata.log (str(time.time()-t))
             self.exit = True
 
         with self.lock:
