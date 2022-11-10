@@ -276,6 +276,8 @@ class EncoderData:
 class RealsenseDrive:
     error=0
     errorPrev=0
+
+    errorBack=0
     integral=0
     pid=0
     pGain = 2.0 # ORIGINAL 2.0
@@ -288,20 +290,22 @@ class RealsenseDrive:
     LOW_SPEED = 85
     barDetected=False
     def update(self, rsData):
-        err = rsData[0]  # ACA VA EL DATO QUE VIENE DE REALSENSE
+        err = rsData[0]         # VALOR REALSENSE MINS DE LA PARTE FRONTAL
+        errBack = rsData[1]     # VALOR REALSENSE MINS DE LA PARTE POSTERIOR
         self.errorPrev = self.error
-        self.error = err / 10  # err /10
+        self.error = err / 10  # err /10 DIVIDE POR 10 para pasar a cm.
+        self.errorBack = errBack / 10    #DIVIDE POR 10 para pasar a cm.
 
         #self.barDetected = True
 
-        if abs(self.error) > 25:
+        if abs(self.error) > 25 and abs(self.errorBack) < 60:
             self.barDetected = True
             self.realSenseDetectedTimer = millis()
 
         if millis()-self.realSenseDetectedTimer > 250:
             self.barDetected = False
 
-        if abs(self.error) <= 25:
+        if abs(self.error) <= 25 and abs(self.errorBack) < 60:
             self.barDetected = True
             self.realSenseDetectedTimer = millis()
 
@@ -1066,9 +1070,11 @@ while True:
     elif navigationMode == NAVIGATION_MODE_REALSENSE:
         manualdrive.stop()
         # PASAR A REALSENSE CUAND ESTAN LOS DOS MINS ACTIVOS PERO NO SALIR DE REALSENSE SI SE PIERDE EL DE ATRAS
-        #motion.setWheelSpeedPercentage(realsense_spRight, realsense_spLeft)
-        #OJO QUE ESTA PARA LA BARRA DEL OTRO LADO!!!
-        motion.setWheelSpeedPercentage(realsense_spLeft, realsense_spRight)
+        # PARA BARRA NORMAL (MIRANDO A LA DERECHA)
+        motion.setWheelSpeedPercentage(realsense_spRight, realsense_spLeft)
+        # PARA BARRA INVERTIDA (M]IRANDO A LA IZQUIERDA)
+        #motion.setWheelSpeedPercentage(realsense_spLeft, realsense_spRight)
+
         if realsenseDrive.barDetected == True:
             if not lidarPause:
                 print ("RS DRIVE:", "BAR DETECTED:", realsenseDrive.barDetected, "MINS:", realsenseMins, "PID ERR:", realsenseDrive.error)

@@ -12,7 +12,7 @@ import time
 import subprocess
 import threading as th
 
-autoStart=False
+autoStart=True
 
 
 
@@ -53,8 +53,8 @@ class ExternalProc:
             self.tkText.addText("ALREADY RUNNING")
             return
 
-        print("STARTING " + self.procTitle + " IN CONSOLE")
-        self.tkText.addText("STARTING " + self.procTitle + " IN CONSOLE")
+        print("STARTING " + self.procTitle + " PROCESS")
+        self.tkText.addText("STARTING " + self.procTitle + " PROCESS\n")
         # self.tkText.clearText()
         # self.procHandler = subprocess.Popen('python.exe C:/smartcube/devel/testLidar_v1/mainNav.py', shell=True, creationflags = subprocess.CREATE_NEW_CONSOLE )
         if self.newConsole==True:
@@ -95,111 +95,111 @@ class ExternalProc:
         self.procHandler = None
 
 
-class camProc:
-    procHandler=None
-    t1=None
-
-    def __init__(self, text):
-        self.tkText = text
-
-    def logOutput(self):
-        while True:
-            line=self.procHandler.stdout.read()
-            if line:
-                self.tkText.addText(line)
-            time.sleep(0.010)
-
-    def isRuninng(self):
-        if self.procHandler is not None:
-            if self.procHandler.is_alive():
-                return True
-        return False
-
-    def start(self):
-        if self.isRuninng():
-            print ("ALREADY RUNNING")
-            self.tkText.addText("ALREADY RUNNING")
-            return
-
-        print("STARTING WEBCAM IN CONSOLE")
-        self.tkText.addText("STARTING WEBCAM IN CONSOLE")
-        #self.tkText.clearText()
-        #self.procHandler = subprocess.Popen('python.exe C:/smartcube/devel/testLidar_v1/mainNav.py', shell=True, creationflags = subprocess.CREATE_NEW_CONSOLE )
-        self.procHandler = subprocess.Popen('python.exe C:/smartcube/devel/testLidar_v1/wrapCAm.py', shell=False)
-                                            #creationflags=subprocess.CREATE_NEW_CONSOLE)
-        self.t1=th.Thread(target=self.logOutput)
-        self.t1.setDaemon(True)
-        self.t1.start()
-
-    def kill (self):
-        print ("KILLING")
-        import psutil
-        parentPid=self.procHandler.pid
-        print (parentPid)
-        parent=psutil.Process(parentPid)
-        for child in parent.children(recursive=True):  # or parent.children() for recursive=False
-            child.kill()
-        parent.kill()
-
-        self.tkText.clearText()
-        self.tkText.addText("PROCESS STOPPED!")
-        #self.procHandler.terminate()
-        self.procHandler=None
-
-
-class navProc:
-    procHandler=None
-    t1=None
-
-    def __init__(self, text):
-        self.tkText = text
-
-    def logOutput(self):
-        while True:
+# class camProc:
+#     procHandler=None
+#     t1=None
+#
+#     def __init__(self, text):
+#         self.tkText = text
+#
+#     def logOutput(self):
+#         while True:
+#             line=self.procHandler.stdout.read()
+#             if line:
+#                 self.tkText.addText(line)
+#             time.sleep(0.010)
+#
+#     def isRuninng(self):
+#         if self.procHandler is not None:
+#             if self.procHandler.is_alive():
+#                 return True
+#         return False
+#
+#     def start(self):
+#         if self.isRuninng():
+#             print ("ALREADY RUNNING")
+#             self.tkText.addText("ALREADY RUNNING")
+#             return
+#
+#         print("STARTING WEBCAM IN CONSOLE")
+#         self.tkText.addText("STARTING WEBCAM IN CONSOLE")
+#         #self.tkText.clearText()
+#         #self.procHandler = subprocess.Popen('python.exe C:/smartcube/devel/testLidar_v1/mainNav.py', shell=True, creationflags = subprocess.CREATE_NEW_CONSOLE )
+#         self.procHandler = subprocess.Popen('python.exe C:/smartcube/devel/testLidar_v1/wrapCAm.py', shell=False)
+#                                             #creationflags=subprocess.CREATE_NEW_CONSOLE)
+#         self.t1=th.Thread(target=self.logOutput)
+#         self.t1.setDaemon(True)
+#         self.t1.start()
+#
+#     def kill (self):
+#         print ("KILLING")
+#         import psutil
+#         parentPid=self.procHandler.pid
+#         print (parentPid)
+#         parent=psutil.Process(parentPid)
+#         for child in parent.children(recursive=True):  # or parent.children() for recursive=False
+#             child.kill()
+#         parent.kill()
+#
+#         self.tkText.clearText()
+#         self.tkText.addText("PROCESS STOPPED!")
+#         #self.procHandler.terminate()
+#         self.procHandler=None
 
 
-            line=self.procHandler.stdout.read()
-            if line:
-                self.tkText.addText(line)
-            time.sleep(0.010)
-
-    def isRuninng(self):
-        if self.procHandler is not None:
-            if self.procHandler.is_alive():
-                return True
-        return False
-
-    def start(self):
-        if self.isRuninng():
-            print ("ALREADY RUNNING")
-            self.tkText.addText("ALREADY RUNNING")
-            return
-
-        print("STARTING IN A NEW CONSOLE")
-        self.tkText.addText("STARTING IN A NEW CONSOLE")
-        #self.tkText.clearText()
-        #self.procHandler = subprocess.Popen('python.exe C:/smartcube/devel/testLidar_v1/mainNav.py', shell=True, creationflags = subprocess.CREATE_NEW_CONSOLE )
-        self.procHandler = subprocess.Popen('python.exe C:/smartcube/devel/testLidar_v1/mainNav.py', shell=False,
-                                            creationflags=subprocess.CREATE_NEW_CONSOLE)
-        self.t1=th.Thread(target=self.logOutput)
-        self.t1.setDaemon(True)
-        self.t1.start()
-
-    def kill (self):
-        print ("KILLING")
-        import psutil
-        parentPid=self.procHandler.pid
-        print (parentPid)
-        parent=psutil.Process(parentPid)
-        for child in parent.children(recursive=True):  # or parent.children() for recursive=False
-            child.kill()
-        parent.kill()
-
-        self.tkText.clearText()
-        self.tkText.addText("PROCESS STOPPED!")
-        #self.procHandler.terminate()
-        self.procHandler=None
-
+# class navProc:
+#     procHandler=None
+#     t1=None
+#
+#     def __init__(self, text):
+#         self.tkText = text
+#
+#     def logOutput(self):
+#         while True:
+#
+#
+#             line=self.procHandler.stdout.read()
+#             if line:
+#                 self.tkText.addText(line)
+#             time.sleep(0.010)
+#
+#     def isRuninng(self):
+#         if self.procHandler is not None:
+#             if self.procHandler.is_alive():
+#                 return True
+#         return False
+#
+#     def start(self):
+#         if self.isRuninng():
+#             print ("ALREADY RUNNING")
+#             self.tkText.addText("ALREADY RUNNING")
+#             return
+#
+#         print("STARTING IN A NEW CONSOLE")
+#         self.tkText.addText("STARTING IN A NEW CONSOLE")
+#         #self.tkText.clearText()
+#         #self.procHandler = subprocess.Popen('python.exe C:/smartcube/devel/testLidar_v1/mainNav.py', shell=True, creationflags = subprocess.CREATE_NEW_CONSOLE )
+#         self.procHandler = subprocess.Popen('python.exe C:/smartcube/devel/testLidar_v1/mainNav.py', shell=False,
+#                                             creationflags=subprocess.CREATE_NEW_CONSOLE)
+#         self.t1=th.Thread(target=self.logOutput)
+#         self.t1.setDaemon(True)
+#         self.t1.start()
+#
+#     def kill (self):
+#         print ("KILLING")
+#         import psutil
+#         parentPid=self.procHandler.pid
+#         print (parentPid)
+#         parent=psutil.Process(parentPid)
+#         for child in parent.children(recursive=True):  # or parent.children() for recursive=False
+#             child.kill()
+#         parent.kill()
+#
+#         self.tkText.clearText()
+#         self.tkText.addText("PROCESS STOPPED!")
+#         #self.procHandler.terminate()
+#         self.procHandler=None
+#
 
 
 
@@ -249,12 +249,12 @@ class PythonProc:
         self.procHandler.terminate()
 
 class tkProcFrame:
-    def __init__(self, root, serviceName):
+    def __init__(self, root, serviceName, txtHeight=5, txtWidth=45):
         self.root = root
         self.serviceName = serviceName
         self.frame = Frame(root, relief="raised", height=10, width=150, border=2)
         #self.text=Text(self.frame, bg="black", fg="white", bd=2, width=100, height=20)
-        self.text=ScrolledText(self.frame, bg="#202020", fg="#a0a0a0", height='5', width='45', wrap=WORD)
+        self.text=ScrolledText(self.frame, bg="#202020", fg="#a0a0a0", height=txtHeight, width=txtWidth, wrap=WORD)
         self.label=Label(self.frame, text = self.serviceName)
         self.btnStart = Button(self.frame, text="START")
         self.btnStop = Button(self.frame, text="STOP")
@@ -283,25 +283,25 @@ class tkProcFrame:
         self.btnStop.configure(command=stopFunc)
 
 
-class tkSingleFrame:
-    def __init__(self, root, serviceName):
-        self.root = root
-        self.serviceName = serviceName
-        self.frame = Frame(root, relief="flat", height=10, width=150, border=2)
-        self.label=Label(self.frame, text = self.serviceName)
-        self.btnStart = Button(self.frame, text="START")
-        self.btnStop = Button(self.frame, text="STOP")
-        self.frame.pack(pady=4)
-        self.label.pack()
-        self.btnStart.pack(padx=5, side=LEFT)
-        self.btnStop.pack(padx=5, side=LEFT)
-
-    def setStartFunc(self, startFunc):
-        self.btnStart.configure(command=startFunc)
-
-    def setStopFunc(self, stopFunc):
-        self.btnStop.configure(command=stopFunc)
-
+# class tkSingleFrame:
+#     def __init__(self, root, serviceName):
+#         self.root = root
+#         self.serviceName = serviceName
+#         self.frame = Frame(root, relief="flat", height=10, width=150, border=2)
+#         self.label=Label(self.frame, text = self.serviceName)
+#         self.btnStart = Button(self.frame, text="START")
+#         self.btnStop = Button(self.frame, text="STOP")
+#         self.frame.pack(pady=4)
+#         self.label.pack()
+#         self.btnStart.pack(padx=5, side=LEFT)
+#         self.btnStop.pack(padx=5, side=LEFT)
+#
+#     def setStartFunc(self, startFunc):
+#         self.btnStart.configure(command=startFunc)
+#
+#     def setStopFunc(self, stopFunc):
+#         self.btnStop.configure(command=stopFunc)
+#
 
 
 class tkProcNav():
@@ -407,7 +407,7 @@ if __name__ == "__main__":
 
 
     mainNavFrame = tkProcNav(frameNav)
-    mainCamFrame = tkProcCam(frameCam)
+    mainCamFrame = tkProcFrame(frameCam, serviceName="Webcam", txtHeight=4, txtWidth=200)
     #mainCamFrame = Frame(root, relief="raised", height=20, width=150, border=2)
     #text, execCommand, procTitle = ""
     procCmd = 'C:/Users/Usuario/AppData/Local/Programs/Python/Python39/python.exe -u C:/smartcube/devel/testLidar_v1/mainNav.py'
@@ -448,30 +448,18 @@ if __name__ == "__main__":
     procFrame6.setStartFunc(p6.start)
     procFrame6.setStopFunc(p6.kill)
 
-    # migueCrap
-    # p7 = PythonProc(procFrame7, "webCamService", wrapCam_proc.serviceStart())
-    # procFrame7.setStartFunc(p7.start)
-    # procFrame7.setStopFunc(p7.kill)
+    frameLidarGraph = tkProcFrame(frameCam, "Lidar Graph" , txtHeight=4, txtWidth=200)
+    pLidarGraph = PythonProc(frameLidarGraph, "Lidar Graph", lidarClientGraphPyGame_proc.serviceStart, noLog=True)
+    frameLidarGraph.setStartFunc(pLidarGraph.start)
+    frameLidarGraph.setStopFunc(pLidarGraph.kill)
 
-    #singleFrame1 = tkProcFrame(frameCam, "Webcam")
-    #pWrapCam = PythonProc(singleFrame1, "Webcam", wrapCam_proc.serviceStart, noLog=True)
-    #singleFrame1.setStartFunc(pWrapCam.start)
-    #singleFrame1.setStopFunc(pWrapCam.kill)
-
-
-    singleFrame2 = tkProcFrame(frameCam, "Lidar Graph")
-    pLidarGraph = PythonProc(singleFrame2, "Lidar Graph", lidarClientGraphPyGame_proc.serviceStart, noLog=True)
-    singleFrame2.setStartFunc(pLidarGraph.start)
-    singleFrame2.setStopFunc(pLidarGraph.kill)
-
-    frameRealSenseColor = tkProcFrame(frameCam, "Realsense Color")
+    frameRealSenseColor = tkProcFrame(frameCam, "Realsense Color" , txtHeight=4, txtWidth=200)
     procCmd = 'C:/Users/Usuario/AppData/Local/Programs/Python/Python39/python.exe -u C:/smartcube/devel/testLidar_v1/realsenseClientColor.py'
     pRealsenseColor=ExternalProc(text=frameRealSenseColor, execCommand=procCmd, procTitle="REALSENSE COLOR", newConsole=False, useShell=True)
     frameRealSenseColor.setStartFunc(pRealsenseColor.start)
     frameRealSenseColor.setStopFunc(pRealsenseColor.kill)
 
-
-    frameRealSenseDepth = tkProcFrame(frameCam, "Realsense Depth")
+    frameRealSenseDepth = tkProcFrame(frameCam, "Realsense Depth" , txtHeight=4, txtWidth=200)
     procCmd = 'C:/Users/Usuario/AppData/Local/Programs/Python/Python39/python.exe -u C:/smartcube/devel/testLidar_v1/realsenseClientDepth.py'
     pRealsenseDepth=ExternalProc(text=frameRealSenseDepth, execCommand=procCmd, procTitle="REALSENSE DEPTH", newConsole=False, useShell=True)
     frameRealSenseDepth.setStartFunc(pRealsenseDepth.start)
@@ -502,11 +490,11 @@ if __name__ == "__main__":
         def delayedStart():
             startDelay=8
             procFrame2.addText("STARING IN " + str(startDelay))
-
             time.sleep(startDelay)
             p2.start()
+            mainCamFrame.addText("STARING IN " + str(startDelay))
             time.sleep(startDelay)
-            z1.start()
+            z2.start()
 
             #time.sleep (5)
             #root.iconify()
@@ -518,14 +506,56 @@ if __name__ == "__main__":
 
     root.mainloop()
 
+    print ("Tying to kill processes..")
+    try:
+        p1.kill()
+    except:
+        pass
+    try:
+        p2.kill()
+    except:
+        pass
+    try:
+        p2.kill()
+    except:
+        pass
+    try:
+        p3.kill()
+    except:
+        pass
+    try:
+        p4.kill()
+    except:
+        pass
+    try:
+        p5.kill()
+    except:
+        pass
+    try:
+        p6.kill()
+    except:
+        pass
+    try:
+        z1.kill()
+    except:
+        pass
+    try:
+        z2.kill()
+    except:
+        pass
 
-    p1.kill()
-    p2.kill()
-    # p3.kill()
-    # p4.kill()
-    p5.kill()
-    p6.kill()
-    z1.kill()
-    z2.kill()
+    try:
+        pLidarGraph.kill()
+    except:
+        pass
+    try:
+        pRealsenseColor.kill()
+    except:
+        pass
+    try:
+        pRealsenseDepth.kill()
+    except:
+        pass
 
+    print ("END")
 
