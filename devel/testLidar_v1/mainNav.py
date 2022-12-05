@@ -490,9 +490,10 @@ class PixyDriveTEST:
     iGain = 0.1 #PID_I_GAIN; 0.1
     dGain = 0.4 #PID_D_GAIN; 0.7
 
-    MAX_SPEED=120 #0.32
+
+    MAX_SPEED=100 # LO BAJE DE 120 a 100
     MIN_SPEED=0
-    LOW_SPEED=40 #ORIGINAL 40 #0.16
+    LOW_SPEED=40  #ORIGINAL 40
 
     speedLeft=0
     speedRight=0
@@ -607,7 +608,10 @@ class MainNavStatus:
         self.statusData.update({"setSpeed": motion.spMax})
         self.statusData.update({"encoderSpeed": encData.speed})
         self.statusData.update({"motionData": motionData})
-
+    #   agregar.. RealSense Actual Distance
+        self.statusData.update({"senseActualDistance": 800})
+    #   agregar.. RealSense Nominal Distance
+        self.statusData.update({"senseNominalDistance": 800})
     def getData(self):
         jsonData=json.dumps(self.statusData, indent=None)
         return jsonData
