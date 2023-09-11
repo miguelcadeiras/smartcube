@@ -62,5 +62,8 @@ class socketProvider:
         self.thListener.start()
 
     def stop(self):
-        self.listener.close()
+        try:
+            self.listener.close()
+        except:
+            logdata.log ("TCP LISTENER WAS NOT RUNNING")
         self.exit = True

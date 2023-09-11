@@ -9,7 +9,7 @@ import numpy as np
 
 LIDAR_PAUSE_DISTANCE=500
 
-realsenseMins=(5000, 5000)
+realsenseMins=(5000, 5000, 0)
 
 lidarMins=(1000,1000)
 joyData=[0,0,0,0]
@@ -176,13 +176,14 @@ class ManualDrive:
     speedRight=0.0
     maxSpeed=0.32
 
+
     def stop(self):
         self.speedLeft=0.0
         self.speedRight=0.0
 
     def fastForward(self):
-        self.speedLeft = self.maxSpeed
-        self.speedRight = self.maxSpeed
+        self.speedLeft = self.maxSpeed * 2
+        self.speedRight = self.maxSpeed * 2
 
     def forward(self):
         self.speedLeft = self.maxSpeed/2
@@ -609,9 +610,9 @@ class MainNavStatus:
         self.statusData.update({"encoderSpeed": encData.speed})
         self.statusData.update({"motionData": motionData})
     #   agregar.. RealSense Actual Distance
-        self.statusData.update({"senseActualDistance": 800})
+        self.statusData.update({"senseActualDistance": realsenseMins[0]})
     #   agregar.. RealSense Nominal Distance
-        self.statusData.update({"senseNominalDistance": 800})
+        self.statusData.update({"senseNominalDistance": realsenseMins[2]})
     def getData(self):
         jsonData=json.dumps(self.statusData, indent=None)
         return jsonData

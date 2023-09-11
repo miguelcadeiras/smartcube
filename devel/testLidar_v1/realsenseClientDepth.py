@@ -42,7 +42,7 @@ while True:
     #cv2.imshow("image", depth_colormap[:100,100:300])
     cv2.imshow("image", depth_colormap)
     #time.sleep(0.010)
-    print (time.time()-lastFrameTime)
+    print ("Frame Interval (seg.):", time.time()-lastFrameTime)
     key = cv2.waitKey(1) & 0xFF
     lastFrameTime = time.time()
     if key == ord("q"):
